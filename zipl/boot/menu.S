@@ -19,6 +19,7 @@ MENU_PARAM_TIMEOUT	= 2			# offset of timeout parameter
 MENU_PARAM_BANNER	= 4			# offset of banner parameter
 MENU_PARAM_CONFIG	= 6			# offset of config parameter
 
+#ifndef VIRTIO
 
 #include "sclp.S"
 
@@ -28,6 +29,8 @@ MENU_PARAM_CONFIG	= 6			# offset of config parameter
 	sclp_read_info
 	sclp_param
 
+#endif
+
 #
 # Subroutine which implements an interactive boot menu.
 #
@@ -36,12 +39,12 @@ MENU_PARAM_CONFIG	= 6			# offset of config parameter
 #
 
 _menu:
-	stm    %r6,%r15,24(%r15)		# save registers
+	stm    %r6,%r15,FRAME_R6(%r15)		# save registers
 	stidp  LC_CPUID				# need CPUID for VM check
 
 	basr   %r13,0				# get base register
 .LbaseM1:
-	ahi    %r15,-96				# create stack frame
+	ahi    %r15,-FRAME_SIZE			# create stack frame
 
 	l      %r6,.LparmareaM0-.LbaseM1(%r13)	# get menu param area address
 
@@ -184,7 +187,7 @@ _menu:
 
 .LendM1:
 	lr     %r2,%r8				# get menu result
-	lm     %r6,%r15,120(%r15)		# restore registers
+	lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)	# restore registers
 
 	br     %r14
 
@@ -198,11 +201,11 @@ _menu:
 #
 
 _menu_list:
-	stm    %r6,%r15,24(%r15)		# save registers
+	stm    %r6,%r15,FRAME_R6(%r15)		# save registers
 
 	basr   %r13,0				# get base register
 .LbaseM2:
-	ahi    %r15,-96				# create stack frame
+	ahi    %r15,-FRAME_SIZE			# create stack frame
 
 	l      %r8,.LparmareaM0-.LbaseM2(%r13)	# get menu param area address
 	la     %r6,63				# number of configs
@@ -230,7 +233,7 @@ _menu_list:
 	la     %r2,.Ltext5M0-.LbaseM2(%r13)	# print empty line
 	bras   %r14,_sclp_print
 
-	lm     %r6,%r15,120(%r15)		# restore registers
+	lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)	# restore registers
 
 	br     %r14
 
@@ -240,11 +243,11 @@ _menu_list:
 #
 
 _menu_prompt:
-	stm    %r6,%r15,24(%r15)		# save registers
+	stm    %r6,%r15,FRAME_R6(%r15)		# save registers
 
 	basr   %r13,0				# get base register
 .LbaseM3:
-	ahi    %r15,-96				# create stack frame
+	ahi    %r15,-FRAME_SIZE			# create stack frame
 
 	l      %r2,.LparmareaM0-.LbaseM3(%r13)	# get menu param area address
 	lh     %r0,MENU_PARAM_TIMEOUT(%r2)	# get timeout value
@@ -300,7 +303,7 @@ _menu_prompt:
 
 	bras   %r14,_sclp_print			# print prompt
 
-	lm     %r6,%r15,120(%r15)		# restore registers
+	lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)	# restore registers
 
 	br     %r14
 
@@ -316,11 +319,11 @@ _menu_prompt:
 #
 
 _menu_read:
-	stm    %r6,%r15,24(%r15)		# save registers
+	stm    %r6,%r15,FRAME_R6(%r15)		# save registers
 
 	basr   %r13,0				# get base register
 .LbaseM4:
-	ahi    %r15,-96				# create stack frame
+	ahi    %r15,-FRAME_SIZE			# create stack frame
 
 	l      %r6,.LparmareaM0-.LbaseM4(%r13)	# get menu param area address
 	l      %r7,.LtempareaM0-.LbaseM4(%r13)	# get temp area = input area
@@ -392,7 +395,7 @@ _menu_read:
 	sr     %r2,%r2				# set default configuration
 
 .LendM4:
-	lm     %r6,%r15,120(%r15)		# restore registers
+	lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)	# restore registers
 
 	br     %r14
 
@@ -508,11 +511,11 @@ _menu_etoi:
 #
 
 _menu_param:
-	stm    %r6,%r15,24(%r15)		# save registers
+	stm    %r6,%r15,FRAME_R6(%r15)		# save registers
 
 	basr   %r13,0				# get base register
 .LbaseM7:
-	ahi    %r15,-96				# create stack frame
+	ahi    %r15,-FRAME_SIZE			# create stack frame
 
 	la     %r6,.LparamM7-.LbaseM7(%r13)	# parameter area
 
@@ -563,7 +566,7 @@ _menu_param:
 	lhi    %r2,2				# failure
 
 .LendM7:
-	lm     %r6,%r15,120(%r15)		# restore registers
+	lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)	# restore registers
 
 	br     %r14
 

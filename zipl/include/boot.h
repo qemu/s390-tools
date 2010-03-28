@@ -184,5 +184,6 @@ int boot_init_eckd_compatible_dump_stage1(
 				struct disk_info* info,
 				int mvdump_switch);
 int boot_get_fba_dump_stage2(void** data, size_t* size, uint64_t mem);
+int boot_get_virtio_stage2(void** data, size_t* size, struct job_data* job);
 
 #endif /* BOOT_H */

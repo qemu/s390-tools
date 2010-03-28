@@ -299,15 +299,24 @@ disk_get_info(const char* device, struct job_target_data* target,
 			goto out_close;
 		data->partnum = stats.st_rdev & DASD_PARTN_MASK;
 		data->device = stats.st_rdev & ~DASD_PARTN_MASK;
-	} else if (strcmp(data->drv_name, "sd") == 0 ||
-		   strcmp(data->drv_name, "virtblk") == 0) {
-		/* Driver name is 'sd' or 'virtblk' */
+	} else if (strcmp(data->drv_name, "sd") == 0) {
+		/* Driver name is 'sd' */
 		if (data->devno != -1) {
 			error_reason("Unsupported device driver '%s' "
 				     "for disk type DASD", data->drv_name);
 			goto out_close;
 		}
 		data->type = disk_type_scsi;
+		data->partnum = stats.st_rdev & SCSI_PARTN_MASK;
+		data->device = stats.st_rdev & ~SCSI_PARTN_MASK;
+	} else if (strcmp(data->drv_name, "virtblk") == 0) {
+		/* Driver name is 'virtblk' */
+		if (data->devno != -1) {
+			error_reason("Unsupported device driver '%s' "
+				     "for disk type DASD", data->drv_name);
+			goto out_close;
+		}
+		data->type = disk_type_virtio;
 		data->partnum = stats.st_rdev & SCSI_PARTN_MASK;
 		data->device = stats.st_rdev & ~SCSI_PARTN_MASK;
 	} else {
@@ -493,6 +502,7 @@ disk_blockptr_from_blocknum(disk_blockptr_t* ptr, blocknum_t blocknum,
 			    struct disk_info* info)
 {
 	switch (info->type) {
+	case disk_type_virtio:
 	case disk_type_scsi:
 	case disk_type_fba:
 	case disk_type_diag:
@@ -625,6 +635,8 @@ char *
 disk_get_type_name(disk_type_t type)
 {
 	switch (type) {
+	case disk_type_virtio:
+		return "Virtio disk layout";
 	case disk_type_scsi:
 		return "SCSI disk layout";
 	case disk_type_fba:
@@ -728,6 +740,7 @@ int
 disk_is_zero_block(disk_blockptr_t* block, struct disk_info* info)
 {
 	switch (info->type) {
+	case disk_type_virtio:
 	case disk_type_scsi:
 	case disk_type_fba:
 		return block->linear.block == 0;
@@ -758,11 +771,12 @@ can_merge_blocks(disk_blockptr_t* first, disk_blockptr_t* second,
 	/* Zero blocks can never be merged */
 	if (disk_is_zero_block(first, info) || disk_is_zero_block(second, info))
 		return 0;
-	if (info->type == disk_type_scsi)
+	if ((info->type == disk_type_scsi) || (info->type == disk_type_virtio))
 		max_count = SCSI_MAX_LINK_COUNT;
 	else
 		max_count = DASD_MAX_LINK_COUNT;
 	switch (info->type) {
+	case disk_type_virtio:
 	case disk_type_scsi:
 	case disk_type_fba:
 		/* Check link count limits */
@@ -800,6 +814,7 @@ merge_blocks(disk_blockptr_t* first, disk_blockptr_t* second,
 	     struct disk_info* info)
 {
 	switch (info->type) {
+	case disk_type_virtio:
 	case disk_type_scsi:
 	case disk_type_fba:
 		first->linear.blockct += second->linear.blockct + 1;

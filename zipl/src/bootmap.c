@@ -63,6 +63,7 @@ get_blockptr_size(struct disk_info* info)
 {
 	switch (info->type) {
 	case disk_type_scsi:
+	case disk_type_virtio:
 		return sizeof(struct scsi_blockptr);
 	case disk_type_fba:
 		return sizeof(struct fba_blockptr);
@@ -88,6 +89,7 @@ bootmap_store_blockptr(void* buffer, disk_blockptr_t* ptr,
 	if (ptr != NULL) {
 		switch (info->type) {
 		case disk_type_scsi:
+		case disk_type_virtio:
 			scsi = (struct scsi_blockptr *) buffer;
 			scsi->blockno = ptr->linear.block;
 			scsi->size = ptr->linear.size;
@@ -641,7 +643,8 @@ get_dump_fs_parmline(char* partition, char* parameters, uint64_t mem,
 			   partition);
 		return rc;
 	}
-	if ((info->type != disk_type_scsi) || (info->partnum == 0)) {
+	if (((info->type != disk_type_scsi) && (info->type != disk_type_virtio))
+	 || (info->partnum == 0)) {
 		error_reason("Device '%s' is not a SCSI partition",
 			     partition);
 		disk_free_info(info);
@@ -950,6 +953,28 @@ bootmap_create(struct job_data* job, disk_blockptr_t* program_table,
 		break;
 	case disk_type_eckd_classic:
 		rc = boot_get_eckd_stage2(&stage2_data, &stage2_size, job);
+		if (rc) {
+			misc_free_temp_dev(device);
+			disk_free_info(info);
+			close(fd);
+			free(filename);
+			return rc;
+		}
+		*stage2_count = disk_write_block_buffer(fd, stage2_data,
+						stage2_size, stage2_list,
+						info);
+		free(stage2_data);
+		if (*stage2_count == 0) {
+			error_text("Could not write to file '%s'", filename);
+			misc_free_temp_dev(device);
+			disk_free_info(info);
+			close(fd);
+			free(filename);
+			return -1;
+		}
+		break;
+	case disk_type_virtio:
+		rc = boot_get_virtio_stage2(&stage2_data, &stage2_size, job);
 		if (rc) {
 			misc_free_temp_dev(device);
 			disk_free_info(info);

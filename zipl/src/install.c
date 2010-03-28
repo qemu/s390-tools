@@ -62,15 +62,22 @@ get_scsi_layout(unsigned char* bootblock)
  * provides information about the disk. */
 static int
 update_scsi_mbr(void* bootblock, disk_blockptr_t* table,
+		disk_blockptr_t* stage2_list, blocknum_t stage2_count,
 		struct disk_info* info)
 {
 	struct scsi_mbr {
-		uint8_t		magic[4];
-		uint32_t	version_id;
-		uint8_t		reserved[8];
-		uint8_t		program_table_pointer[16];
+		uint8_t			magic[4];
+		uint32_t		version_id;
+		uint8_t			reserved[8];
+		uint8_t			program_table_pointer[16];
+		struct {
+			uint64_t	sector;
+			uint32_t	size;
+			uint32_t	unused;
+		} stage2[16];
 	}  __attribute__ ((packed))* mbr;
 	void* buffer;
+	int i;
 
 	switch (get_scsi_layout(bootblock)) {
 	case scsi_layout_pcbios:
@@ -98,6 +105,16 @@ update_scsi_mbr(void* bootblock, disk_blockptr_t* table,
 	memcpy(&mbr->magic, ZIPL_MAGIC, ZIPL_MAGIC_SIZE);
 	mbr->version_id = DISK_LAYOUT_ID;
 	bootmap_store_blockptr(&mbr->program_table_pointer, table, info);
+
+	/* Virtio can use the bootloader, so let's describe its location in
+	   the MBR */
+	if (info->type == disk_type_virtio) {
+		for (i = 0; i < stage2_count; i++) {
+			mbr->stage2[i].sector = stage2_list[i].linear.block;
+			mbr->stage2[i].size = stage2_list[i].linear.size << 16 |
+					      stage2_list[i].linear.blockct;
+		}
+	}
 	return 0;
 }
 
@@ -107,7 +124,9 @@ update_scsi_mbr(void* bootblock, disk_blockptr_t* table,
  * to the disk block containing the program table. INFO provides
  * information about the disk type. Return 0 on success, non-zero otherwise. */
 static int
-install_scsi(int fd, disk_blockptr_t* program_table, struct disk_info* info)
+install_scsi(int fd, disk_blockptr_t* program_table,
+	     disk_blockptr_t* stage2_list, blocknum_t stage2_count,
+	     struct disk_info* info)
 {
 	unsigned char* bootblock;
 	int rc;
@@ -129,7 +148,8 @@ install_scsi(int fd, disk_blockptr_t* program_table, struct disk_info* info)
 		return rc;
 	}
 	/* Put zIPL data into MBR */
-	rc = update_scsi_mbr(bootblock, program_table, info);
+	rc = update_scsi_mbr(bootblock, program_table, stage2_list,
+			     stage2_count, info);
 	if (rc) {
 		free(bootblock);
 		return -1;
@@ -314,8 +334,10 @@ install_bootloader(const char* device, disk_blockptr_t *program_table,
 	/* Call disk specific install functions */
 	rc = -1;
 	switch (info->type) {
+	case disk_type_virtio:
 	case disk_type_scsi:
-		rc = install_scsi(fd, program_table, info);
+		rc = install_scsi(fd, program_table, stage2_list, stage2_count,
+				  info);
 		break;
 	case disk_type_fba:
 		rc = install_fba(fd, program_table, stage2_list, stage2_count,
@@ -1044,6 +1066,7 @@ install_dump(const char* device, struct job_target_data* target, uint64_t mem)
 		else
 			rc = install_dump_fba(fd, info, mem);
 		break;
+	case disk_type_virtio:
 	case disk_type_scsi:
 		error_reason("%s: Unsupported disk type '%s' (try --dumptofs)",
 			     device, disk_get_type_name(info->type));

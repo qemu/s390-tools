@@ -16,6 +16,59 @@ EENABLE_DEV  = 0x00000100 # enable device failed
 EDISABLE_DEV = 0x00000101 # disable device failed
 ESSCH        = 0x00000102 # start subchannel failed
 EWRONGTYPE   = 0x00000200 # wrong ipl type supplied
+
+#ifdef SCSI
+
+/*
+ * SCSI descriptors are 128 bytes long, containing two 64-bit parameters.
+ * So we need to massage the code a bit to allow handlers to be 64-bit
+ * aware and make use of the long desciptors.
+ */
+
+#define DESC_SHIFT	4
+#define DESC_LEN	16
+
+#else
+
+#define DESC_SHIFT	3
+#define DESC_LEN	8
+
+#endif
+
+/* If our user is 64 bit aware, we need to use 64 bit instructions and stack. */
+#ifdef BIT64
+
+/*
+ * The following instruction defines ensure we get 64 bit values while
+ * traversing the block identifiers which have the following layout:
+ *
+ *    ______________________________________________________
+ *   |                    |           |           |         |
+ *   |     u64 sector     |  u16 size | u16 count | u32 pad |
+ *   |                    |           |           |         |
+ *   '------------------------------------------------------'
+ *
+ */
+#define LM		lmg
+#define LR		lgr
+
+/* Our C code expects to be able to use stmg to the stack, so give it enough
+   space */
+#define FRAME_SIZE	(24 * 8)
+
+/* We still use lm and stm to access the stack, so let's also use the old
+   offsets */
+#define FRAME_R6	(6 * 4)
+
+#else
+
+#define LM		lm
+#define LR		lr
+#define FRAME_SIZE	(24 * 4)
+#define FRAME_R6	(6 * 4)
+
+#endif
+
 	.macro stage2_start
 #
 # Function entry point at 0x2000 is called with C linkage
@@ -36,7 +89,7 @@ _start: stm    %r0,%r15,0x180           # store all registers
 0:      l      %r15,3f-0b(%r13)         # load end of stack address
 
 	bas    %r14,_menu-0b(%r13)	# show menu
-	sll    %r2,3			# get offset from config number
+	sll    %r2,DESC_SHIFT		# get offset from config number
 	lr     %r6,%r2
 
         l      %r11,0xb8                # load ipl device subchannel id
@@ -48,18 +101,18 @@ _start: stm    %r0,%r15,0x180           # store all registers
 6:
         la     %r10,0
         st     %r10,__LC_PANIC_MAGIC    # clear panic flag
-	lm     %r2,%r3,STAGE2_DESC      # get block with configurations
+	LM     %r2,%r3,STAGE2_DESC      # get block with configurations
 	lr     %r4,%r11
 	l      %r5,4f-0b(%r13)
 	la     %r12,0(%r5)              # FIXME: provide the correct offset
         bas    %r14,_load_direct-0b(%r13)
 	ar     %r6,%r12
-        lm     %r2,%r3,8(%r6)           # get block with load descriptors
+        LM     %r2,%r3,DESC_LEN(%r6)    # get block with load descriptors
         lr     %r4,%r11
         lr     %r5,%r12                 # set load address
         bas    %r14,_load_direct-0b(%r13)
 	la     %r12,32(%r12)		# skip header entry
-1:      lm     %r2,%r3,0(%r12)		# load blocklist container of descriptor
+1:      LM     %r2,%r3,0(%r12)		# load blocklist container of descriptor
 	l      %r4,20(%r12)		# load type
 	lhi    %r5,0xf
 	nr     %r4,%r5			# only the last four bits are the type
@@ -71,7 +124,7 @@ _start: stm    %r0,%r15,0x180           # store all registers
         bas    %r14,0(%r1)
 2:	la     %r12,32(%r12)		# next load descriptor
         b      1b-0b(%r13)
-3:      .long  0x10000-96
+3:      .long  0x10000-FRAME_SIZE
 4:	.long  0x8000
 5:	.long  _bug			# type 0: not allowed
 	.long  _execute			# type 1: jump to target
@@ -86,12 +139,12 @@ _bug:
 
 
 _load_binary:
-        stm    %r6,%r15,24(%r15)
+        stm    %r6,%r15,FRAME_R6(%r15)
         basr   %r13,0                   # base register
 0:      s      %r15,1f-0b(%r13)         # create stack frame
         lr     %r12,%r4
 	bas    %r14,_load_blocklist-0b(%r13)
-        lm     %r6,%r15,120(%r15)
+        lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)
         br     %r14
 1:	.long  96
 	
@@ -123,56 +176,59 @@ _execute:
 #   %r4    : device subchannel id
 #   %r5    : load address
 _load_blocklist:
-        stm    %r6,%r15,24(%r15)
+        stm    %r6,%r15,FRAME_R6(%r15)
         basr   %r13,0                   # base register
 0:      s      %r15,7f-0b(%r13)         # create stack frame
-1:	lr     %r12,%r4                 # save device subchannel id
-	lr     %r11,%r5                 # save load address
-	lr     %r8,%r2                  # save descriptor
-	lr     %r9,%r3
+1:	LR     %r12,%r4                 # save device subchannel id
+	LR     %r11,%r5                 # save load address
+	LR     %r8,%r2                  # save descriptor
+	LR     %r9,%r3
 	bas    %r14,_extract_length-0b(%r13)   # get length from descriptor
-	lr     %r10,%r2                 # save returned length
-	lr     %r2,%r8                  # reload descriptor to %r2/%r3
-	lr     %r3,%r9
-	lr     %r4,%r12                 # reload device id to %r4
+	LR     %r10,%r2                 # save returned length
+	LR     %r2,%r8                  # reload descriptor to %r2/%r3
+	LR     %r3,%r9
+	LR     %r4,%r12                 # reload device id to %r4
 	l      %r5,9f-0b(%r13)          # get memory area for indirect block
         bas    %r14,_load_direct-0b(%r13) # load indirect block
-	lr     %r9,%r10                 # (length / 8 - 1) = # direct descr.
-	srl    %r9,3
+	LR     %r9,%r10                 # (length / 8 - 1) = # direct descr.
+	srl    %r9,DESC_SHIFT
 	bctr   %r9,0
 	l      %r8,9f-0b(%r13)
-2:	clc    0(8,%r8),8f-0b(%r13)     # test block descriptor
+2:	clc    0(DESC_LEN,%r8),8f-0b(%r13) # test block descriptor
 	be     6f-0b(%r13)              # descriptor == 0 -> done
-	lm     %r2,%r3,0(%r8)           # pass block descriptor
+	LM     %r2,%r3,0(%r8) # pass block descriptor
 	bas    %r14,_is_zero_block-0b(%r13)    # test for special 0 descriptor
 	ltr    %r2,%r2                  # is it a hole to fill with 0?
 	bne    4f-0b(%r13)              # no, normal block descriptor
-	lm     %r2,%r3,0(%r8)           # pass block descriptor
+	LM     %r2,%r3,0(%r8) # pass block descriptor
 	bas    %r14,_extract_length-0b(%r13)   # get length from descriptor
-	lr     %r3,%r2                  # move length to an odd register
-	lr     %r2,%r11                 # move address to an even register
+	LR     %r3,%r2                  # move length to an odd register
+	LR     %r2,%r11                 # move address to an even register
 	alr    %r11,%r3                 # add length to load address
 	slr    %r5,%r5                  # set length of source to zero
 3:	mvcle  %r2,%r4,0                # clear storage
 	bo     3b-0b(%r13)	
 	b      5f-0b(%r13)
-4:	lm     %r2,%r3,0(%r8)           # pass block descriptor
-	lr     %r4,%r12                 # pass device subchannel id
-        lr     %r5,%r11                 # pass load address
+4:	LM     %r2,%r3,0(%r8) # pass block descriptor
+	LR     %r4,%r12                 # pass device subchannel id
+        LR     %r5,%r11                 # pass load address
         bas    %r14,_load_direct-0b(%r13) # load indirect block
-	lr     %r11,%r2                 # move updated load address
-5:	la     %r8,8(%r8)               # next descriptor
+	LR     %r11,%r2                 # move updated load address
+5:	la     %r8,DESC_LEN(%r8)        # next descriptor
 	bct    %r9,2b-0b(%r13)
-	lm     %r2,%r3,0(%r8)           # load continuation descriptor
-	lr     %r4,%r12                 # move device id for next round
-	lr     %r5,%r11			# move load address for next round
-	clc    0(8,%r8),8f-0b(%r13)     # test continuation descriptor
+	LM     %r2,%r3,0(%r8) # load continuation descriptor
+	LR     %r4,%r12                 # move device id for next round
+	LR     %r5,%r11			# move load address for next round
+	clc    0(DESC_LEN,%r8),8f-0b(%r13) # test continuation descriptor
 	bne    1b-0b(%r13)              # != 0 -> load next indirect block
-6:      lr     %r2,%r11                 # return updated load address
-	lm     %r6,%r15,120(%r15)
+6:      LR     %r2,%r11                 # return updated load address
+	lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)
         br     %r14
 7:      .long  96
 8:      .long  0,0
+#if DESC_LEN == 16
+        .long  0,0
+#endif
 9:      .long  0x8200                   # memory address for indirect blocks
 
         .endm
@@ -185,7 +241,7 @@ _load_blocklist:
 #   %r2 : lpum of subchannel
 #
 _enable_device:
-        stm    %r6,%r15,24(%r15)
+        stm    %r6,%r15,FRAME_R6(%r15)
         basr   %r13,0                   # base register
 0:      s      %r15,4f-0b(%r13)
 	lr     %r1,%r2
@@ -201,7 +257,7 @@ _enable_device:
 	lctl   %c6,%c6,6f-0b(%r13)      # enable all interrupt classes
 	sr     %r2,%r2
 	ic     %r2,10+5f-0b(%r13)	# return lpum in r2
-        lm     %r6,%r15,120(%r15)
+        lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)
         br     %r14
 2: # clear status and retry
 	tsch   __LC_IRB
@@ -220,7 +276,7 @@ _enable_device:
 #   %r2 : device subchannel id
 #
 _disable_device:
-        stm    %r6,%r15,24(%r15)
+        stm    %r6,%r15,FRAME_R6(%r15)
         basr   %r13,0                   # base register
 0:      s      %r15,4f-0b(%r13)
 	lr     %r1,%r2
@@ -234,7 +290,7 @@ _disable_device:
         msch   5f-0b(%r13)
 	brc    6,2f			# status pending or busy
 	brc    1,3f			# panic if not operational
-        lm     %r6,%r15,120(%r15)
+        lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)
         br     %r14
 2: # clear status and retry
 	tsch   __LC_IRB
@@ -295,10 +351,10 @@ _wait_for_int:
 #   %r4 : address of irb
 #
 _ssch:
-	stm    %r6,%r15,24(%r15)
+	stm    %r6,%r15,FRAME_R6(%r15)
 	basr   %r13,0			# get base register
 0:
-	ahi    %r15,-96			# create stack frame
+	ahi    %r15,-FRAME_SIZE		# create stack frame
 	lr     %r6,%r2			# r6:  sid
 	lr     %r7,%r3			# r7:  orb
 	lr     %r8,%r4			# r8:  irb
@@ -334,7 +390,7 @@ _ssch:
 	jnz    6f			# if status!=0 goto retry
 	tm     8(%r8),0x4		# test irb device end
 	jz     4b			# if !device_end goto wait_for_int_loop
-	lm     %r6,%r15,120(%r15)
+	lm     %r6,%r15,(FRAME_SIZE + FRAME_R6)(%r15)
 	br     %r14			# return
 
 6: # retry

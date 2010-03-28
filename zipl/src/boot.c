@@ -24,7 +24,7 @@
 #define DATA_SIZE(x)	((size_t) (&_binary_##x##_bin_size))
 #define DATA_ADDR(x)	(&_binary_##x##_bin_start)
 
-#define STAGE2_MAX_SIZE		4096
+static int stage2_max_size = 4096;
 
 
 /* Check sizes of internal objects. Return 0 if everything is correct,
@@ -220,7 +220,7 @@ boot_init_eckd_compatible_stage1(struct boot_eckd_compatible_stage1* stage1,
 	memcpy(stage1, DATA_ADDR(eckd1b),
 	       sizeof(struct boot_eckd_compatible_stage1));
 	/* Fill in blocklist for stage 2 loader */
-	blocks = (STAGE2_MAX_SIZE + info->phy_block_size - 1) /
+	blocks = (stage2_max_size + info->phy_block_size - 1) /
 		 info->phy_block_size;
 	if (blocks > 12) {
 		error_reason("Not enough room for ECKD stage 2 loader "
@@ -472,19 +472,19 @@ boot_get_fba_stage2(void** data, size_t* size, struct job_data* job)
 	void* buffer;
 	int rc;
 
-	buffer = misc_malloc(STAGE2_MAX_SIZE);
+	buffer = misc_malloc(stage2_max_size);
 	if (buffer == NULL)
 		return -1;
 	memcpy(buffer, DATA_ADDR(fba2), DATA_SIZE(fba2));
 	rc = store_stage2_menu(VOID_ADD(buffer, DATA_SIZE(fba2)),
-			       STAGE2_MAX_SIZE - DATA_SIZE(fba2),
+			       stage2_max_size - DATA_SIZE(fba2),
 			       job);
 	if (rc) {
 		free(buffer);
 		return rc;
 	}
 	*data = buffer;
-	*size = STAGE2_MAX_SIZE;
+	*size = stage2_max_size;
 	return 0;
 }
 
@@ -495,19 +495,43 @@ boot_get_eckd_stage2(void** data, size_t* size, struct job_data* job)
 	void* buffer;
 	int rc;
 
-	buffer = misc_malloc(STAGE2_MAX_SIZE);
+	buffer = misc_malloc(stage2_max_size);
 	if (buffer == NULL)
 		return -1;
 	memcpy(buffer, DATA_ADDR(eckd2), DATA_SIZE(eckd2));
 	rc = store_stage2_menu(VOID_ADD(buffer, DATA_SIZE(eckd2)),
-			       STAGE2_MAX_SIZE - DATA_SIZE(eckd2),
+			       stage2_max_size - DATA_SIZE(eckd2),
 			       job);
 	if (rc) {
 		free(buffer);
 		return rc;
 	}
 	*data = buffer;
-	*size = STAGE2_MAX_SIZE;
+	*size = stage2_max_size;
+	return 0;
+}
+
+
+int
+boot_get_virtio_stage2(void** data, size_t* size, struct job_data* job)
+{
+	void* buffer;
+	int rc;
+
+	stage2_max_size = (16 * 512);
+	buffer = misc_malloc(stage2_max_size);
+	if (buffer == NULL)
+		return -1;
+	memcpy(buffer, DATA_ADDR(virtio2), DATA_SIZE(virtio2));
+	rc = store_stage2_menu(VOID_ADD(buffer, DATA_SIZE(virtio2)),
+			       stage2_max_size - DATA_SIZE(virtio2),
+			       job);
+	if (rc) {
+		free(buffer);
+		return rc;
+	}
+	*data = buffer;
+	*size = stage2_max_size;
 	return 0;
 }
 

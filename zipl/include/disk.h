@@ -44,6 +44,7 @@ typedef union {
 
 /* Disk type identifier */
 typedef enum {
+	disk_type_virtio,
 	disk_type_scsi,
 	disk_type_fba,
 	disk_type_diag,
