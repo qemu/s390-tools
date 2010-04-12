@@ -12,6 +12,7 @@
 #define ZIPL_H
 
 #include <stdint.h>
+#include "zt_common.h"
 
 #define ZIPL_MAGIC			"zIPL"
 #define ZIPL_MAGIC_SIZE			4
@@ -22,7 +23,12 @@
 #define DEFAULT_PARMFILE_ADDRESS	0x1000LL
 #define DEFAULT_STAGE3_ADDRESS		0xa000LL
 #define DEFAULT_IMAGE_ADDRESS		0x10000LL
-#define DEFAULT_RAMDISK_ADDRESS 	0x800000LL
+#define MINIMUM_ADDRESS 		0x10000LL
+#define ADDRESS_LIMIT 			0x80000000LL
+#define UNSPECIFIED_ADDRESS		-1ULL
+#define MAXIMUM_PARMLINE_SIZE 		0x1000
+#define MAXIMUM_STAGE3_SIZE 		0x1000
+#define MAXIMUM_PHYSICAL_BLOCKSIZE 	0x1000
 
 #define PSW_ADDRESS_MASK		0x000000007fffffffLL
 #define PSW_LOAD			0x0008000080000000LL
@@ -50,6 +56,9 @@ typedef uint64_t address_t;
 /* Call a function depending on the value of dry_run and return either the
  * resulting return code or 0. */
 #define	DRY_RUN_FUNC(x)	(dry_run ? 0 : (x))
+
+#define ALIGN(x,a)              __ALIGN_MASK(x,(typeof(x))(a)-1)
+#define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
 
 extern int verbose;
 extern int interactive;

@@ -375,7 +375,7 @@ static int dinfo_create_devnode(dev_t dev, char **devno)
 				/* Need this test to cover
 				 * 'nodev'-mounted
 				 * filesystems. */
-				fd = open(result, O_RDWR);
+				fd = open(result, O_RDONLY);
 				if (fd != -1) {
 					close(fd);
 					*devno = result;

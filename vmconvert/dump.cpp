@@ -46,8 +46,8 @@ ProgressBar::initProgress(void)
 void 
 ProgressBar::displayProgress(uint64_t value, uint64_t maxValue)
 {
+	char progress_bar[51];
 	int j;
-	char progress_bar[50];
 
 	if (progressPercentage == (int) (value * 100 / maxValue))
 		fprintf(stderr, "%6lld of %6lld |\r",
@@ -58,6 +58,7 @@ ProgressBar::displayProgress(uint64_t value, uint64_t maxValue)
 			progress_bar[j] = '#';
 		for (j = progressPercentage / 2; j < 50; j++)
 			progress_bar[j] = '-';
+		progress_bar[50] = 0;
 		fprintf(stderr, "%6lld of %6lld |%s| %3d%%  \r",
 			(long long) value, (long long) maxValue,
 			progress_bar, progressPercentage);

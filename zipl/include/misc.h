@@ -25,6 +25,7 @@ struct misc_file_buffer {
 
 
 void* misc_malloc(size_t size);
+void* misc_calloc(size_t n, size_t size);
 char* misc_strdup(const char* s);
 int misc_read(int fd, void* buffer, size_t count);
 int misc_read_file(const char* filename, char** buffer, size_t* size,

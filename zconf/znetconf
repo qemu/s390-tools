@@ -2,14 +2,58 @@
 #
 # znetconf - list and configure network devices
 #
-# Tool for the automatic and semi-automatic configuration of network devices 
+# Tool for the automatic and semi-automatic configuration of network devices
 # from ccw devices, including network device option handling and network
 # device removal.
 #
-# Copyright IBM Corp. 2009 
+# Copyright IBM Corp. 2009
 # Author(s): Einar Lueck <elelueck@de.ibm.com>
 #            Steffen Maier <maier@de.ibm.com>
 #
+# 9 Could not group devices
+readonly RC_COULD_NOT_GROUP_DEVICES=9
+# 10 Could not set device online
+readonly RC_COULD_NOT_SET_DEV_ONLINE=10
+# 11 Could not set device offline
+readonly RC_COULD_NOT_SET_DEV_OFFLINE=11
+# 12 Invalid attribute value pair
+readonly RC_INVALID_ATTRIBUTE_VALUE_PAIR=12
+# 13 Missing component (broken installation)
+readonly RC_BROKEN_INSTALLATION=13
+# 14 Missing device ID
+readonly RC_MISSING_DEVICE_ID=14
+# 15 Invalid device ID format
+readonly RC_INVALID_DEVICE_ID_FORMAT=15
+# 16 Driver name expected
+readonly RC_DRIVER_NAME_EXPECTED=16
+# 17 Unknown driver
+readonly RC_UNKNOWN_DRIVER=17
+# 18 Missing attribute value pair for -o|--option
+readonly RC_MISSING_ATTRIBUTE_VALUE_PAIR=18
+# 19 Invalid argument
+readonly RC_INVALID_ARGUMENT=19
+# 20 Too much arguments
+readonly RC_TOO_MUCH_ARGUMENTS=20
+# 21 No configuration found for device ID
+readonly RC_NO_CONFIG_FOUND_FOR_DEV=21
+# 22 Device is not configured
+readonly RC_DEVICE_NOT_CONFIGURED=22
+# 23 Could not ungroup device
+readonly RC_COULD_NOT_UNGROUP_DEVICE=23
+# 24 At least one option could not be configured
+readonly RC_OPTION_NOT_CONFIGURED=24
+# 25 Missing value for attribute
+readonly RC_MISSING_VALUE=25
+# 26 Device does not exist
+readonly RC_DEVICE_DOES_NOT_EXIST=26
+# 27 Device already in use
+readonly RC_DEVICE_ALREADY_IN_USE=27
+# 28 Net device did not come online
+readonly RC_NET_DEVICE_NOT_ONLINE=28
+# 29 Some devices could not be added or failed
+readonly RC_SOME_DEVICES_FAILED=29
+# 99 internal error, this should never happen
+readonly RC_INTERNAL_ERROR=99
 
 #==============================================================================
 # constants
@@ -29,6 +73,7 @@ else
 fi
 SYSFSDIR=$(cat /proc/mounts|awk '$3=="sysfs"{print $2; exit}')
 CCWGROUPBUS_DIR=$SYSFSDIR/bus/ccwgroup
+CCWDEV_DIR=$SYSFSDIR/bus/ccw/devices
 CCWGROUPBUS_DEVICEDIR=$CCWGROUPBUS_DIR/devices
 CCWGROUPBUS_DRIVERDIR=$CCWGROUPBUS_DIR/drivers
 DEVNOSEP=","
@@ -290,15 +335,14 @@ function lookup_layer()
 #==============================================================================
 
 #
-# group_device 
+# group_device
 # 	$1: ccwdevid[;ccwdevid][;ccwdevid]
 #	$2: ccwgroupdevid
 #	$3: driver
-# returns 
+# returns
 #	0 success
-#	1 group file not found
-#	2 grouping failed
-# 
+#	RC_COULD_NOT_GROUP_DEVICES
+#
 function group_device()
 {
 	local DEVICES=$1
@@ -307,13 +351,13 @@ function group_device()
 	local GROUPFILE=$CCWGROUPBUS_DRIVERDIR/$DRIVER/group
 	local CTCMGROUPFILE=$CCWGROUPBUS_DRIVERDIR/ctcm/group
 	local CTCGROUPFILE=$CCWGROUPBUS_DRIVERDIR/ctc/group
-	
+
 	# check if group file exists
-	if [ ! -e $GROUPFILE ] 
+	if [ ! -e $GROUPFILE ]
 	then
 		# try to load driver
 		if ! modprobe $DRIVER &> /dev/null
-		then 
+		then
 			if [ $DRIVER = "ctc" ]
 			then
 				# check if ctcm driver exists
@@ -329,7 +373,7 @@ function group_device()
 					GROUPFILE=$CTCGROUPFILE
 				fi
 			fi
-		fi 
+		fi
 	fi
 	if [ -e $GROUPFILE ]
 	then
@@ -340,13 +384,13 @@ function group_device()
 			*)
 				print_error "Could not group devices" \
 					"$DEVICES"
-				return 2
+				return $RC_COULD_NOT_GROUP_DEVICES
 				;;
 		esac
 	else
 		print_error "$GROUPFILE does not exist"
-			
-		return 1
+
+		return $RC_COULD_NOT_GROUP_DEVICES
 	fi
 	return 0
 }
@@ -354,14 +398,13 @@ function group_device()
 #==============================================================================
 
 #
-# ungroup_device 
+# ungroup_device
 #	$1: ccwgroupdevid
 #	$2: network device name (just for display purposes)
-# returns 
+# returns
 #	0 success
-#	1 group file not found
-#	2 ungrouping failed
-# 
+#	RC_COULD_NOT_UNGROUP_DEVICE
+#
 function ungroup_device()
 {
 	local TARGET_DEVID="$1"
@@ -378,12 +421,12 @@ function ungroup_device()
 				;;
 			*)
 				print_error "Failed to ungroup $TARGET_DEVID"
-				return 2
+				return $RC_COULD_NOT_UNGROUP_DEVICE
 				;;
 		esac
 	else
 		print_error "$DEVICE_UNGROUPFILE does not exist."
-		return 1
+		return $RC_COULD_NOT_UNGROUP_DEVICE
 	fi
 	return 0
 }
@@ -393,12 +436,12 @@ function ungroup_device()
 #
 # try_read_netdevname
 # 	$1: ccwgroupdevno
-# returns 
+# returns
 #	0 success
 #	1 failed. giving up after retries
 # stdout
 #	in case of success: device name
-# 
+#
 function try_read_netdevname()
 {
 	local CCWGROUPDEVNO="$1"
@@ -406,7 +449,7 @@ function try_read_netdevname()
 	local NET_SUBDIR="$CCWGROUPBUS_DEVICEDIR/$CCWGROUPDEVNO/net/"
 	local IF_NAME=""
 	local rc=1
-		
+
 	# check if interface file containing the name exists
 	if [ -e "$IF_NAME_FILE" ]
 	then
@@ -417,7 +460,7 @@ function try_read_netdevname()
 		IF_NAME=$(ls $NET_SUBDIR)
 	else
 		# if the file does not exist
-		local LINKNAME=$(find $CCWGROUPBUS_DEVICEDIR/$CCWGROUPDEVNO/ -type l -name net*) 
+		local LINKNAME=$(find $CCWGROUPBUS_DEVICEDIR/$CCWGROUPDEVNO/ -type l -name net*)
 		if [[ ! -z $LINKNAME ]]
 		then
 			IF_NAME=$(readlink $LINKNAME)
@@ -434,10 +477,10 @@ function try_read_netdevname()
 #
 # wait_for_net_device
 # 	$1: ccwgroupdevno
-# returns 
+# returns
 #	0 success
 #	1 failed. giving up after retries
-# 
+#
 function wait_for_net_device()
 {
 	local CCWGROUPDEVNO="$1"
@@ -447,7 +490,7 @@ function wait_for_net_device()
 	local IF_NAME=""
 	local CMD_FINDNETLINK="find $CCWGROUPBUS_DEVICEDIR/$CCWGROUPDEVNO/ -type l -name net*"
 	local LINKNAME=""
-		
+
 	# polling loop to wait for net device to become available
 	if [ -e $UDEVSETTLE ]
 	then
@@ -460,7 +503,7 @@ function wait_for_net_device()
 	fi
 	while [[ -z "$IF_NAME" ]] && [[ retries -lt MAX_RETRIES ]]
 	do
-		sleep 1 
+		sleep 1
 		retries=$retries+1
 		IF_NAME=$(try_read_netdevname $CCWGROUPDEVNO)
 	done
@@ -468,8 +511,8 @@ function wait_for_net_device()
 	then
 		echo "Successfully configured device $CCWGROUPDEVNO ($IF_NAME)"
 	else
-		print_error "Failed to make $CCWGROUPDEVNO online." 
-		return 1	
+		print_error "Failed to make $CCWGROUPDEVNO online."
+		return 1
 	fi
 }
 
@@ -479,11 +522,11 @@ function wait_for_net_device()
 # switch_device
 # 	$1: ccwgroupdevno
 #	$2: 1|0 (online|offline)
-# returns 
+# returns
 #	0 success
 #	1 command to make device online/offline returned error
 #	2 online file does not exist
-# 
+#
 function switch_device()
 {
 	local CCWGROUPDEVNO="$1"
@@ -491,7 +534,7 @@ function switch_device()
 	local DEVICE_DIRECTORY="$CCWGROUPBUS_DEVICEDIR/$CCWGROUPDEVNO"
 	local ONLINE_FILE="$DEVICE_DIRECTORY/online"
 	local STATESTR="online"
-	
+
 	if [ $SWITCHVALUE -eq 0 ]
 	then
 		STATESTR="offline"
@@ -513,7 +556,7 @@ function switch_device()
 		print_error "$ONLINE_FILE does not exist."
 		return 2
 	fi
-	
+
 	return 0
 }
 
@@ -524,12 +567,12 @@ function switch_device()
 #	$1: ccwgroupdevid
 #	$2: option_name
 #	$3: option_value
-# returns 
+# returns
 #	0 success
 # 	1 option not allowed to be set (e.g. online)
 #	2 unknown option
 #	3 configuration failed
-# 
+#
 function configure_ccwgroupdev_option()
 {
 	local CCWGROUPDEVID="$1"
@@ -539,10 +582,10 @@ function configure_ccwgroupdev_option()
 	# filter some attributes away
 	if [ "$OPTION_NAME" == "online" ]
 	then
-		print_error "Ignoring option $OPTION_NAME=$OPTION_VALUE" 
+		print_error "Ignoring option $OPTION_NAME=$OPTION_VALUE"
 		return 1
 	fi
-	
+
 	# check if attribute exists
 	local ATTRFILE="$CCWGROUPBUS_DEVICEDIR/$CCWGROUPDEVID/$OPTION_NAME"
 	if [ -f $ATTRFILE ]
@@ -574,13 +617,13 @@ function configure_ccwgroupdev_option()
 #	$4: opt_count
 #	$5..$(5+opt_count): opt_name_array
 #	$5+opt_count..5+2*opt_count: opt_value_array
-# returns 
+# returns
 #	0 success
-#	1 grouping failed
-#	2 failed to make device online 
-#	3 net device did not become available
-#	4 device online but some option could not be set
-# 
+#	RC_COULD_NOT_GROUP_DEVICES
+#	RC_COULD_NOT_SET_DEV_ONLINE
+#	RC_NET_DEVICE_NOT_ONLINE
+#	RC_OPTION_NOT_CONFIGURED
+#
 function add_net_device()
 {
 	local DEVICES="$1"
@@ -591,10 +634,9 @@ function add_net_device()
 	local OPT_NAME_ARRAY=("${RAW[@]:4:$OPT_COUNT}")
 	local OPT_VALUE_ARRAY=("${RAW[@]:$[4 + $OPT_COUNT]:$OPT_COUNT}")
 
-	group_device $DEVICES $CCWGROUPDEVID $DRIVER
-	if [ $? -ne 0 ]
+	if ! group_device $DEVICES $CCWGROUPDEVID $DRIVER
 	then
-		return 1
+		return $?
 	fi
 
 	local i=0
@@ -602,9 +644,8 @@ function add_net_device()
 	local HAS_LAYER2_OPTION=0
 	while [ $i -lt $OPT_COUNT ]
 	do
-		configure_ccwgroupdev_option $CCWGROUPDEVID \
+		if ! configure_ccwgroupdev_option $CCWGROUPDEVID \
 			 ${OPT_NAME_ARRAY[$i]} ${OPT_VALUE_ARRAY[$i]}
-		if [ $? -ne 0 ]
 		then
 			SOMEOPTION_FAILED=1
 		fi
@@ -628,22 +669,20 @@ function add_net_device()
 				"layer2" "$LAYER2"
 		fi
 	fi
- 
-	switch_device $CCWGROUPDEVNO 1
-	if [ $? -ne 0 ]
+
+	if ! switch_device $CCWGROUPDEVNO 1
 	then
-		return 2
+		return $RC_COULD_NOT_SET_DEV_ONLINE
 	fi
 
-	wait_for_net_device $CCWGROUPDEVNO
-	if [ $? -ne 0 ]
+	if ! wait_for_net_device $CCWGROUPDEVNO
 	then
-		return 3
+		return $RC_NET_DEVICE_NOT_ONLINE
 	fi
 
 	if [ $SOMEOPTION_FAILED -ne 0 ]
 	then
-		return 4
+		return $RC_OPTION_NOT_CONFIGURED
 	fi
 
 	return 0
@@ -655,26 +694,24 @@ function add_net_device()
 # remove_net_device
 #	$1: ccwgroupdevid
 #	$2: network interface name (just for display purposes)
-# returns 
+# returns
 #	0 success
-#	1 making device offline failed
-#	2 ungrouping device failed
-# 
+#	RC_COULD_NOT_SET_DEV_OFFLINE
+#	RC_COULD_NOT_UNGROUP_DEVICE
+#
 function remove_net_device()
 {
 	local DEVICE_TO_REMOVE="$1"
 	local DEVNAME="$2"
 
-	switch_device $DEVICE_TO_REMOVE 0
-	if [ $? -ne 0 ]
+	if ! switch_device $DEVICE_TO_REMOVE 0
 	then
-		return 1
+		return $RC_COULD_NOT_SET_DEV_OFFLINE
 	fi
 
-	ungroup_device $DEVICE_TO_REMOVE $DEVNAME
-	if [ $? -ne 0 ]
+	if ! ungroup_device $DEVICE_TO_REMOVE $DEVNAME
 	then
-		return 2
+		return $RC_COULD_NOT_UNGROUP_DEVICE
 	fi
 	return 0
 }
@@ -684,9 +721,9 @@ function remove_net_device()
 #
 # list_configured
 #	$1 supress_header
-# returns 
+# returns
 #	0 success
-# 
+#
 function list_configured()
 {
 	supress_header=0
@@ -723,11 +760,11 @@ function list_configured()
 
 		# read all links and parse driver, device name and ccw device
 		# bus-ids
-		ls -l $d/ | grep '^l' | 
-		{ 
+		ls -l $d/ | grep '^l' |
+		{
 
-			while read line 
-			do	
+			while read line
+			do
 				local LINKNAME=${line// ->*/""}
 				LINKNAME=${LINKNAME##* }
 				if [ "$LINKNAME" = "driver" ]
@@ -742,14 +779,14 @@ function list_configured()
 				then
 					DEVNAME=${line##* -> */}
 				fi
-			done 
+			done
 
 			local CUTYPE=""
 			if [ -e $d/cdev0/cutype ]
 			then
 				read CUTYPE < $d/cdev0/cutype
 			fi
-			
+
 			read ONLINE < $d/online
 			if [ $ONLINE -eq 1 ]
 			then
@@ -795,15 +832,15 @@ function print_list_unconf_header()
 
 #
 # list_unconfigured
-# returns 
+# returns
 #	0 success
-# 
+#
 function list_unconfigured()
 {
 	local PRINTED_HEADLINES=0
 	local LIST_FORMATSTR="%-26.26s %-7.7s %-14.14s %5.5s %-4.4s \n"
 	print_scanning_4_nwdevices
-	
+
 	$LSZNET_CALL |
 	{
 		while read no cutype chp devtype devdrv devname chlist cardtype
@@ -824,29 +861,29 @@ function list_unconfigured()
 #
 # store_option
 #	$1: attribute=value
-# returns 
+# returns
 #	0 success
 #	1 attribute starts with a - / or is invalid
 #	2 missing value
-# 
+#
 function store_option()
 {
 	local OPTIONSTRING="$1"
 
 	# ensure that there is no option intepreted as an
-	# attribute value pair 
+	# attribute value pair
 	[[ "$OPTIONSTRING" =~ ^- ]]
 	case $? in
 		0)
 			print_error "$OPTIONSTRING is not a valid attribute" \
-				"value pair" 
+				"value pair"
 			exit 1
 			;;
 		1)
 			# option considered ok
 			;;
 		2)
-			print_error "Internal error" 
+			print_error "Internal error"
 			exit 1
 	esac
 
@@ -874,17 +911,17 @@ function store_option()
 #
 # is_complete_ccwdevbusid
 #	$1: possibly correct ccw device bus id
-# returns 
+# returns
 #	0 if the given string is a correctly formatted ccw device bus id
 #	1 else
-# 
+#
 function is_complete_ccwdevbusid()
 {
 	local DEV="$1"
 	[[ "$DEV" =~ $FORMAT_FULLDEVNO ]]
-	case $? in 
+	case $? in
 		0)
-			return 0 
+			return 0
 			;;
 		1)
 			return 1
@@ -902,41 +939,41 @@ function is_complete_ccwdevbusid()
 #
 # is_partial_ccwdevbusid
 #	$1: possibly correct partial ccw device bus id
-# returns 
+# returns
 #	0 if the given string is a correctly formatted partial ccw device
 #	  bus id
 #	1 else
-# 
+#
 function is_partial_ccwdevbusid()
 {
 	local DEV="$1"
 	[[ "$DEV" =~ $FORMAT_PARTDEVNO ]]
 	case $? in
 		0)
-			return 0	
+			return 0
 			;;
 		1)
-			return 1 
+			return 1
 			;;
 		2)
 			print_error "Internal error"
 			exit 1
 			;;
 	esac
-}	
+}
 
 #==============================================================================
 
 #
 # is_ccwdevbusid_list
 #	$1: possibly correct list of ccw device bus ids
-# returns 
+# returns
 #	0 if the given string is a correctly formatted list of ccw device
 # 	  bus ids
 #	1 else
-# 
+#
 function is_ccwdevbusid_list()
-{ 
+{
 	local DEVLIST="$1"
 	[[ "$DEVLIST" =~ $FORMAT_DEVLIST ]]
 	case $? in
@@ -959,13 +996,13 @@ function is_ccwdevbusid_list()
 #
 # is_shortccwdevbusid_list
 #	$1: possibly correct list of short ccw device bus ids
-# returns 
+# returns
 #	0 if the given string is a correctly formatted list of short ccw device
 # 	  bus ids
 #	1 else
-# 
+#
 function is_shortccwdevbusid_list()
-{ 
+{
 	local DEVLIST="$1"
 	[[ "$DEVLIST" =~ $FORMAT_SHORTDEVLIST ]]
 	case $? in
@@ -987,14 +1024,14 @@ function is_shortccwdevbusid_list()
 #
 # is_supported_driver
 #	$1: possibly supported driver
-# returns 
-#	0 if the given string denotes a supported driver 
+# returns
+#	0 if the given string denotes a supported driver
 #	1 else
-# 
+#
 function is_supported_driver()
 {
 	local DRIVER="$1"
-	[[ "$DRIVER" =~ "^(qeth|lcs|ctc|ctcm)$" ]] 
+	[[ "$DRIVER" =~ "^(qeth|lcs|ctc|ctcm)$" ]]
 	case $? in
 		0)
 			return 0
@@ -1081,7 +1118,7 @@ DEVICE_TO_REMOVE=""
 DO_REMOVEALL=0
 NONINTERACTIVE=0
 EXCEPT=""
-if [ $# -gt 0 ] 
+if [ $# -gt 0 ]
 then
 	while [ $# -gt 0 ]
 	do
@@ -1092,7 +1129,7 @@ then
 				;;
 			-v|--version)
 				print_version
-				exit 0	
+				exit 0
 				;;
 			-A|--add-all)
 				DO_ADDALL=1
@@ -1103,15 +1140,15 @@ then
 				if [ $# -lt 1 ]
 				then
 					print_error "Device ID expected"
-					exit 1
+					exit $RC_MISSING_DEVICE_ID
 				fi
 
-				# get parameter expected to be a 
-				# ccw device bus id 
+				# get parameter expected to be a
+				# ccw device bus id
 				DEVICE_TO_ADD="$1"
 				shift
 
-				# check syntax of ccw device bus id 
+				# check syntax of ccw device bus id
 				if is_complete_ccwdevbusid "$DEVICE_TO_ADD" ||
 					is_ccwdevbusid_list "$DEVICE_TO_ADD"
 				then
@@ -1127,9 +1164,9 @@ then
 					DO_ADD=1
 				else
 					print_error "Invalid device ID format" \
-						"$DEVICE_TO_ADD" 
-						
-					exit 1
+						"$DEVICE_TO_ADD"
+
+					exit $RC_INVALID_DEVICE_ID_FORMAT
 				fi
 
 				;;
@@ -1142,18 +1179,18 @@ then
 				if [ $# -lt 1 ]
 				then
 					print_error "Driver name expected"
-					exit 1
+					exit $RC_DRIVER_NAME_EXPECTED
 				fi
 
 				# ensure driver is supported
 				DRIVER="$1"
 				shift
 				if [ "$DRIVER" != "" ] && \
-					! is_supported_driver "$DRIVER" 
+					! is_supported_driver "$DRIVER"
 				then
 					# unknown driver
 					print_error "Unknown driver $DRIVER"
-					exit 1
+					exit $RC_UNKNOWN_DRIVER
 				fi
 				;;
 			-o|--option)
@@ -1164,7 +1201,7 @@ then
 					print_error "Missing attrtibute" \
 						"value pair for -o|--" \
 						"option"
-					exit 1
+					exit $RC_MISSING_ATTRIBUTE_VALUE_PAIR
 				fi
 
 				# get option string
@@ -1174,26 +1211,26 @@ then
 				# store option
 				if ! store_option $OPTIONSTRING
 				then
-					exit $?
+					exit $RC_INVALID_ATTRIBUTE_VALUE_PAIR
 				fi
 				;;
 			-r|--remove)
 				DO_REMOVE=1
 				shift
-		
+
 				# ensure there is a further parameter
 				if [ $# -lt 1 ]
 				then
 					print_error "Expecting <device_bus_id>"\
 						"of device to be removed"
-					exit 1
+					exit $RC_MISSING_ATTRIBUTE_VALUE_PAIR
 				fi
 
 				# get device to be removed
 				DEVICE_TO_REMOVE="$1"
 				shift
-				
-				# validate it is a 
+
+				# validate it is a
 				# ccw dev bus id (short or long)
 				if is_partial_ccwdevbusid "$DEVICE_TO_REMOVE"
 				then
@@ -1203,7 +1240,7 @@ then
 				then
 					print_error "Invalid device ID format" \
 						"$DEVICE_TO_REMOVE"
-					exit 1
+					exit $RC_INVALID_DEVICE_ID_FORMAT
 				fi
 				;;
 			-R|--remove-all)
@@ -1219,7 +1256,7 @@ then
 				then
 					print_error "<device_bus_id> missing"\
 						"for -e|--except"
-					exit 1
+					exit $RC_MISSING_DEVICE_ID
 				fi
 
 				# get device to be removed
@@ -1236,7 +1273,7 @@ then
 				then
 					print_error "Invalid device ID format" \
 						"$EXCEPT_DEVNO"
-					exit 1
+					exit $RC_INVALID_DEVICE_ID_FORMAT
 				fi
 
 				# create a filter statement
@@ -1258,7 +1295,7 @@ then
 			*)
 				echo "$CMD: Invalid option $1"
 				echo "Try '$CMD --help' for more information."
-				exit 1
+				exit $RC_INVALID_ARGUMENT
 				;;
 		esac
 	done
@@ -1271,7 +1308,7 @@ if [ $(($DO_ADD + $DO_ADDALL + $DO_LIST_UNCONFIGURED + $DO_LIST_CONFIGURED + \
 then
 	print_error "Too much arguments"
 	echo "Try '$CMD --help' for more information."
-	exit 1
+	exit $RC_TOO_MUCH_ARGUMENTS
 fi
 
 # react to parsed options
@@ -1290,12 +1327,31 @@ then
 		then
 			print_error "No configuration found for device ID" \
 				"$DEVICE_TO_ADD"
-			exit 1
+			exit $RC_NO_CONFIG_FOUND_FOR_DEV
 		fi
 	else
-		# define set of device numbers to be used		
+		# define set of device numbers to be used
 		DEVICES="$DEVICE_TO_ADD"
-		
+
+		# ensure none of the CCW devices is already in use
+		CCW_DEVS=${DEVICES//,/ }
+		for CCW_DEVNO in $CCW_DEVS
+		do
+			CCW_DEV_ONLINEFILE="$CCWDEV_DIR/$CCW_DEVNO/online"
+			if [ ! -e  $CCW_DEV_ONLINEFILE ]
+			then
+				print_error "Device $CCW_DEVNO does not exist"
+				exit $RC_DEVICE_DOES_NOT_EXIST
+			fi
+
+			read CCW_DEV_ONLINE < $CCW_DEV_ONLINEFILE
+			if [ "$CCW_DEV_ONLINE" == "1" ]
+			then
+				print_error "$CCW_DEVNO is already in use"
+				exit $RC_DEVICE_ALREADY_IN_USE
+			fi
+		done
+
 		# try to find a driver for the given set of device numbers
 		CANDIDATE=$($LSZNET_CALL|
 			awk "\$7~/${DEVICE_TO_ADD//,// && \$7~/}/ {print \$5}")
@@ -1305,7 +1361,7 @@ then
 	# compute the expected group device number
 	CCWGROUPDEVNO=${DEVICES%%,*}
 
-	# check whether an appropriate driver was determined automatically or 
+	# check whether an appropriate driver was determined automatically or
 	# not, if not, one has to be given by the user via -d
 	if [ "$DRIVER" == "" ]
 	then
@@ -1345,7 +1401,7 @@ then
 				$ATTRIBUTE_COUNT "${ATTRIBUTE_NAME[@]}" \
 				"${ATTRIBUTE_VALUE[@]}"
 			then
-				ADDALL_RC=1
+				ADDALL_RC=$RC_SOME_DEVICES_FAILED
 			fi
 		done
 		exit "$ADDALL_RC"
@@ -1363,9 +1419,9 @@ then
 	if [[ -z "$CCWGROUPDEVID_TO_REMOVE" ]]
 	then
 		print_error "$DEVICE_TO_REMOVE is not a configured device"
-		exit 1
+		exit $RC_DEVICE_NOT_CONFIGURED
 	fi
-	
+
 	echo "Remove network device $CCWGROUPDEVID_TO_REMOVE" \
 	 	"($CCWDEVBUSIDS_TO_REMOVE)?"
 	echo "Warning: this may affect network connectivity!"
@@ -1403,7 +1459,7 @@ then
 fi
 if [ $DO_LIST_UNCONFIGURED -eq 1 ]
 then
-	list_unconfigured 
+	list_unconfigured
 	exit 0
 fi
 if [ $DO_LIST_CONFIGURED -eq 1 ]

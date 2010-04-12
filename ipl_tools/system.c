@@ -174,7 +174,7 @@ int strrd(char *string, char *file)
 			fprintf(stderr, "%s\n", strerror(errno));
 			exit(1);
 		}
-		rc = fread(string, 4096, 1, filp);
+		rc = fread(string, 1, 4096, filp);
 		fclose(filp);
 		/*
 		 *  special handling is required for
@@ -193,6 +193,7 @@ int strrd(char *string, char *file)
 			fprintf(stderr, "%s\n", strerror(errno));
 			return -1;
 		} else {
+			string[rc] = 0;
 			if (string[strlen(string) - 1] == '\n')
 				string[strlen(string) - 1] = 0;
 			return 0;

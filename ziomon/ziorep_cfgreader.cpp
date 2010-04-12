@@ -669,7 +669,8 @@ const struct hctl_ident* ConfigReader::get_ident_by_mm_internal(__u32 mm, int *r
 	for (list<struct device_info>::const_iterator i = m_devices.begin(); \
 	      i != m_devices.end(); ++i) { \
 		list<type>::iterator j; \
-		for (j = tgt.begin(); j != tgt.end() && (*i).a != (*j); ++j); \
+		for (j = tgt.begin(); j != tgt.end() && (*i).a != (*j); ++j) \
+			; \
 		if (j == tgt.end()) \
 			tgt.push_back((*i).a); \
 	}

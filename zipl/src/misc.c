@@ -38,6 +38,23 @@ misc_malloc(size_t size)
 }
 
 
+/* Allocate N * SIZE bytes of memory. Upon success, return pointer to memory.
+ * Return NULL otherwise. */
+void *
+misc_calloc(size_t n, size_t size)
+{
+	void* result;
+
+	result = calloc(n, size);
+	if (result == NULL) {
+		error_reason("Could not allocate %lld bytes of memory",
+			     (unsigned long long) n *
+			     (unsigned long long) size);
+	}
+	return result;
+}
+
+
 /* Duplicate the given string S. Upon success, return pointer to new string.
  * Return NULL otherwise. */
 char *

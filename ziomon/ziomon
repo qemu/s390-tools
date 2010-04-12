@@ -471,7 +471,7 @@ function clean_devices() {
 function check_for_multipath_devices() {
    local i;
    local j;
-   local mp_arr;
+   local mp_arr=();
    local line;
    local devices_basenames;
    local tmp;

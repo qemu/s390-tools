@@ -6,7 +6,7 @@ COMMON_INCLUDED = true
 # "make DISTRELEASE=%{release}" and "make install DISTRELEASE=%{release}"
 VERSION            = 1
 RELEASE            = 8
-PATCHLEVEL         = 3
+PATCHLEVEL         = 4
 DISTRELEASE        = build-$(shell date +%Y%m%d)
 S390_TOOLS_RELEASE = $(VERSION).$(RELEASE).$(PATCHLEVEL)-$(DISTRELEASE)
 export S390_TOOLS_RELEASE
@@ -42,9 +42,9 @@ else
 	WARNFLAGS = -W -Wall
 endif
 CFLAGS		= $(WARNFLAGS) -O3 -DS390_TOOLS_RELEASE=$(S390_TOOLS_RELEASE) \
-			$(OPT_FLAGS)
+			-g $(OPT_FLAGS)
 CXXFLAGS	= $(WARNFLAGS) -O3 -DS390_TOOLS_RELEASE=$(S390_TOOLS_RELEASE) \
-			$(OPT_FLAGS)
+			-g $(OPT_FLAGS)
 export AS LD CC CPP AR NM STRIP OBJCOPY OBJDUMP INSTALL CFLAGS
 
 # Support alternate install root
@@ -70,10 +70,10 @@ export ZFCPDUMP_DIR ZFCPDUMP_IMAGE ZFCPDUMP_RD
 
 # Overwrite implicite makefile rules for having nice compile output
 %.o: %.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 %.o: %.cpp
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
 %: %.o
 	$(LINK) $(LDFLAGS) $^ $(LOADLIBES) $(LDLIBS) -o $@

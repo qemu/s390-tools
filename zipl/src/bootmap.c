@@ -23,7 +23,6 @@
 #include "disk.h"
 #include "error.h"
 #include "misc.h"
-#include "zt_common.h"
 
 
 /* Header text of the bootmap file */
@@ -421,52 +420,22 @@ add_component_buffer(int fd, void* buffer, size_t size, address_t load_address,
 }
 
 
-static int
-is_in_component(address_t a, struct component_loc *loc)
-{
-	return (a >= loc->addr && a < (loc->addr + loc->size));
-}
-
-
-static int
-check_component_overlap(const char *name[], struct component_loc *loc, int num)
+static void
+print_components(const char *name[], struct component_loc *loc, int num)
 {
 	const char *padding = "................";
-	int overlap;
 	int i;
-	int j;
 
-	if (verbose)
-		printf("  component address:\n");
-	overlap = -1;
+	printf("  component address:\n");
 	/* Process all available components */
 	for (i = 0; i < num; i++) {
 		if (loc[i].size == 0)
 			continue;
-		for (j = 0; j < num; j++) {
-			if (loc[j].size == 0 || i == j)
-				continue;
-			/* Check for overlap */
-			if (is_in_component(loc[i].addr, &loc[j]) ||
-			    is_in_component(loc[j].addr, &loc[i])) {
-				/* Set error text only for first occurrence */
-				if (overlap == -1) {
-					error_reason("%s and %s", name[i],
-						     name[j]);
-				}
-				overlap = i;
-			}
-			
-		}
-		if (verbose)
-			printf("    %s%s: 0x%08llx-0x%08llx%s\n", name[i],
-			       &padding[strlen(name[i])],
-			       (unsigned long long) loc[i].addr,
-			       (unsigned long long) (loc[i].addr +
-						     loc[i].size - 1),
-			       (i == overlap ? " (overlap)" : ""));
+		printf("    %s%s: 0x%08llx-0x%08llx\n", name[i],
+		       &padding[strlen(name[i])],
+		       (unsigned long long) loc[i].addr,
+		       (unsigned long long) (loc[i].addr + loc[i].size - 1));
 	}
-	return overlap != -1;
 }
 
 
@@ -571,14 +540,8 @@ add_ipl_program(int fd, struct job_ipl_data* ipl, disk_blockptr_t* program,
 		return -1;
 	}
 	offset += sizeof(struct component_entry);
-	/* Check for component overlaps */
-	rc = check_component_overlap(comp_name, comp_loc, 4);
-	if (rc)
-	{
-		error_text("Component overlap");
-		free(table);
-		return -1;
-	}
+	if (verbose)
+		print_components(comp_name, comp_loc, 4);
 	/* Terminate component table */
 	create_component_entry(VOID_ADD(table, offset), NULL,
 			       component_execute,
@@ -629,7 +592,8 @@ add_segment_program(int fd, struct job_segment_data* segment,
 	}
 	offset += sizeof(struct component_entry);
 	/* Print component addresses */
-	check_component_overlap(comp_name, comp_loc, 1);
+	if (verbose)
+		print_components(comp_name, comp_loc, 1);
 	/* Terminate component table */
 	create_component_entry(VOID_ADD(table, offset), NULL,
 			       component_execute, PSW_DISABLED_WAIT, info);
@@ -689,9 +653,9 @@ get_dump_fs_parmline(char* partition, char* parameters, uint64_t mem,
 		disk_free_info(info);
 		return -1;
 	}
-	disk_free_info(info);
 	buffer = create_dump_fs_parmline(parameters, "/dev/ram0", info->partnum,
 					 mem, 1);
+	disk_free_info(info);
 	if (buffer == NULL)
 		return -1;
 	*result = buffer;
@@ -709,29 +673,17 @@ add_dump_fs_program(int fd, struct job_dump_fs_data* dump_fs,
 	int rc;
 
 	/* Convert fs dump job to IPL job */
-	rc = misc_check_readable_file(FSDUMP_IMAGE);
-	if (rc) {
-		error_text("Need external file '%s' for file system dump",
-			   FSDUMP_IMAGE);
-		return rc;
-	}
-	ipl.image = FSDUMP_IMAGE;
-	ipl.image_addr = DEFAULT_IMAGE_ADDRESS;
-
-	/* Ramdisk is no longer required with new initramfs dump system. */
-	if (misc_check_readable_file(FSDUMP_RAMDISK))
-		ipl.ramdisk = NULL;
-	else {
-		ipl.ramdisk = FSDUMP_RAMDISK;
-		ipl.ramdisk_addr = DEFAULT_RAMDISK_ADDRESS;
-	}
+	ipl.image = dump_fs->image;
+	ipl.image_addr = dump_fs->image_addr;
+	ipl.ramdisk = dump_fs->ramdisk;
+	ipl.ramdisk_addr = dump_fs->ramdisk_addr;
 
 	/* Get file system dump parmline */
 	rc = get_dump_fs_parmline(dump_fs->partition, dump_fs->parmline,
 				  dump_fs->mem, info, target, &ipl.parmline);
 	if (rc)
 		return rc;
-	ipl.parm_addr = DEFAULT_PARMFILE_ADDRESS;
+	ipl.parm_addr = dump_fs->parm_addr;
 	return add_ipl_program(fd, &ipl, program, verbose, 1,
 			       type, info, target);
 }

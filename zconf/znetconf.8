@@ -1,6 +1,6 @@
 .TH ZNETCONF 8 "Mar 2009" "s390-tools"
 
-.SH NAME 
+.SH NAME
 znetconf \- list and configure network devices for System z network adapters
 
 .SH SYNOPSIS
@@ -8,10 +8,10 @@ znetconf \- list and configure network devices for System z network adapters
 .B [-h|--help] [-v|--version]
 .br
 
-.br  
-.B znetconf -u | -c 
 .br
-.B znetconf -a <device_bus_id>[,...]{2} [-o <ATTR>=<VALUE>]+ [-d <DRIVER>] 
+.B znetconf -u | -c
+.br
+.B znetconf -a <device_bus_id>[,...]{2} [-o <ATTR>=<VALUE>]+ [-d <DRIVER>]
 .br
 .B znetconf -A [-o <ATTR>=<VALUE>]+ [-d <DRIVER>] [-e <device_bus_id>]+
 .br
@@ -27,12 +27,12 @@ Based on these lists, it automatically adds or removes network devices.
 For automatic configuration, znetconf builds a channel command word
 (CCW) group device from sensed CCW devices, configures any specified
 option through the sensed network device driver and sets the new
-network device online. 
+network device online.
 .P
 During automatic removal, znetconf sets the device offline and removes it.
 Be aware that removing all network devices leads to the
-complete loss of network connectivity. So a terminal session (e.g. 3270) 
-might be required to restore. 
+complete loss of network connectivity. So a terminal session (e.g. 3270)
+might be required to restore.
 
 .SH OPTIONS
 .TP 8
@@ -43,30 +43,30 @@ Print help text.
 .BR -v | --version
 Print the version of the s390-tools package and the znetconf command.
 
-.TP 
-.BR -u | --unconfigured	
+.TP
+.BR -u | --unconfigured
 List potential network devices that are not yet configured.
 For each device, the following data is provided:
 .RS
 .TP 4
-* 
-Device IDs (device bus bus-IDs) of the CCW devices constituting the network 
+*
+Device IDs (device bus bus-IDs) of the CCW devices constituting the network
 device
 .TP
-* 
+*
 Type of control unit (e.g. 1731/01)
 .TP
-* 
+*
 Network card type (e.g. OSA (QDIO))
 .TP
 *
-Channel path identifier (CHPID) 
+Channel path identifier (CHPID)
 .TP
 *
 Device driver (qeth, lcs, ctc, ctcm)
 .RE
-.TP 
-.BR -c | --configured 
+.TP
+.BR -c | --configured
 List configured network devices. For each device, the following data is
 provided:
 .RS
@@ -104,7 +104,7 @@ device_bus_id can be any of the device
 IDs listed as part of the potential network device list (argument
 .BR -u ")."
 For example, if znetconf
-.BR -u 
+.BR -u
 lists 0.0.f503,0.0.f504,0.0.f505 for a potential network device, device_bus_id
 may be 0.0.f503 or 0.0.f504 or 0.0.f505.
 If a device bus-ID begins with 0.0., you can abbreviate it to the final 4
@@ -115,11 +115,11 @@ If attribute value pairs are given with
 .BR -o ", "
 these pairs are configured for the created network device. The
 device is then set online regardless of whether the given attribute value pairs
-were applied successfully. 
+were applied successfully.
 .br
 Finally, the corresponding network interface name (e.g. eth1) is displayed.
 .br
-If more then one device_bus_id is given, the given set of devices is configured as a network device. znetconf tries to sense the required device driver 
+If more then one device_bus_id is given, the given set of devices is configured as a network device. znetconf tries to sense the required device driver
 automatically. If the device driver cannot be sensed, you must specify it with
 -d.
 .BR -d "."
@@ -145,7 +145,7 @@ znetconf continues with the next remaining potential network device.
 
 .TP
 .BR -r | --remove " <device_bus_id> [-n | --non-interactive]"
-Remove the network device identified by device_bus_id. device_bus_id is one of 
+Remove the network device identified by device_bus_id. device_bus_id is one of
 the device IDs of the network device. They are listed as part of znetconf
 .BR -c "."
 znetconf sets the device offline and removes it. If
@@ -164,21 +164,105 @@ with
 .TP
 \fB<ATTR>\fR
 Specify a device option. The option must match a sysfs attribute for the device
-to be configured.
+to be configured. For a detailed description of the semantics of sysfs 
+attributes please refer to the Device Drivers, Features, and Commands book for 
+Linux on System z. The attributes are:
+
+.RS
+.B qeth
+.br
+broadcast_mode
+.br
+buffer_count
+.br
+canonical_macaddr
+.br
+checksumming
+.br
+fake_broadcast
+.br
+ipa_takeover/add4
+.br
+ipa_takeover/add6
+.br
+ipa_takeover/del4
+.br
+ipa_takeover/del6
+.br
+ipa_takeover/enable
+.br
+ipa_takeover/invert4
+.br
+ipa_takeover/invert6
+.br
+isolation
+.br
+large_send
+.br
+layer2
+.br
+performance_stats
+.br
+portname
+.br
+portno
+.br
+priority_queueing
+.br
+route4
+.br
+route6
+.br
+rxip/add4
+.br
+rxip/add6
+.br
+rxip/del4
+.br
+rxip/del6
+.br
+vipa/add4
+.br
+vipa/add6
+.br
+vipa/del4
+.br
+vipa/del
+.RE
+
+.RS
+.B ctc(m)
+.br
+buffer
+.br
+loglevel
+.br
+protocol
+.br
+stats
+.RE
+
+.RS
+.B lcs
+.br
+portno
+.br
+lancmd_timeout
+.RE
 
 .TP
-\fB<device_bus_id>\fR 
+\fB<device_bus_id>\fR
 Specify the device bus-ID of a CCW device. Device bus-IDs have the form
 ([A-Fa-f0-9].[A-Fa-f0-9].)[A-Fa-f0-9]{4}.
 
-If a device bus-ID begins with 0.0., you can abbreviate it to the final 4 
+If a device bus-ID begins with 0.0., you can abbreviate it to the final 4
 hexadecimal digits.
 
 For example, you can abbreviate 0.0.f503 to f503.
 
 .TP
 \fB<DRIVER>\fR
-Specify the device driver for the device. Valid values are qeth, lcs, ctc, or 
+Specify the device driver for the device. Valid values are qeth, lcs, ctc, or
 ctcm.
 
 .SH EXAMPLES
@@ -242,9 +326,9 @@ Shows the list of potential network devices. Example output:
 Device IDs                 Type    Card Type  CHPID Drv.
 .br
 --------------------------------------------------------
-0.0.f500,0.0.f501,0.0.f502 1731/01 OSA (QDIO) 00    qeth   
+0.0.f500,0.0.f501,0.0.f502 1731/01 OSA (QDIO) 00    qeth
 .br
-0.0.f503,0.0.f504,0.0.f505 1731/01 OSA (QDIO) 01    qeth 
+0.0.f503,0.0.f504,0.0.f505 1731/01 OSA (QDIO) 01    qeth
 .RE
 .P
 \fBznetconf -a 0.0.f503\fR
@@ -258,13 +342,13 @@ lists the new network device.
 .P
 \fBznetconf -a f503\fR
 .RS
-This command is equivalent to \fBznetconf -a 0.0.f503\fR. 
+This command is equivalent to \fBznetconf -a 0.0.f503\fR.
 .RE
 .P
 \fBznetconf -a f503 -o layer2=0 -o portname=myname\fR
 .RS
-Adds the potential network device 
-with 0.0.f503 as one of its device bus-IDs  
+Adds the potential network device
+with 0.0.f503 as one of its device bus-IDs
 and configures the options layer2 with value 0 and
 portname with myname.
 .RE
@@ -288,9 +372,9 @@ Device IDs                 Type    Card Type     CHPID Drv. Name State
 
 \fBznetconf -r 0.0.f503\fR
 .RS
-Removes the network device with 0.0.f503 as one of its device bus-IDs. 
+Removes the network device with 0.0.f503 as one of its device bus-IDs.
 You can only remove configured devices as listed by znetconf
-.BR -c "." 
+.BR -c "."
 After successfully running this command the corresponding device appears in the
 list of potential network devices as listed by znetconf
 .BR -u "."
@@ -303,9 +387,76 @@ This command is equivalent to \fBznetconf -r 0.0.f503\fR.
 .P
 
 .SH DIAGNOSTICS
-If znetconf runs successfully, the exit status is 0. In case of errors, 1 is
-returned.
-
+If znetconf runs successfully, the exit status is 0. In case of errors, the following codes are returned:
+.TP
+.BR 0
+success
+.TP
+.BR 9
+could not group devices
+.TP
+.BR 10
+could not set device online
+.TP
+.BR 11
+could not set device offline
+.TP
+.BR 12
+invalid attribute value pair
+.TP
+.BR 13 
+missing component (broken installation)
+.TP
+.BR 14
+missing device ID
+.TP
+.BR 15
+invalid device ID format
+.TP
+.BR 16
+driver name expected
+.TP
+.BR 17
+unknown driver
+.TP
+.BR 18
+missing attribute value pair for -o|--option
+.TP
+.BR 19
+invalid argument
+.TP
+.BR 20
+too much arguments
+.TP
+.BR 21 
+no configuration found for device ID
+.TP
+.BR 22
+device is not configured
+.TP
+.BR 23
+could not ungroup device
+.TP
+.BR 24
+at least one option could not be configured
+.TP
+.BR 25
+missing value for attribute
+.TP
+.BR 26
+device does not exist
+.TP
+.BR 27
+device already in use
+.TP
+.BR 28
+net device did not come online
+.TP
+.BR 29
+some devices could not be added or failed
+.TP
+.BR 99
+internal znetconf bug
 .SH AUTHOR
 .nf
 This man-page was written by Einar Lueck <elelueck@de.ibm.com>.

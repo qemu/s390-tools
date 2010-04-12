@@ -903,8 +903,8 @@ static int create_dump(void)
 	/* write end marker */
 
 	dp.address = 0x0;
-	dp.size    = DUMP_DH_END;
-	dp.flags   = 0x0;
+	dp.size    = 0x0;
+	dp.flags   = DUMP_DH_END;
 	dump_write(fout, &dp, sizeof(dp));
 
 failed_close_fout:
@@ -926,14 +926,14 @@ failed_close_fmap:
 /*
  * Load a kernel module
  */
-static int modprobe(const char *module)
+static void modprobe(const char *module)
 {
 	pid_t pid;
 
 	pid = fork();
 	if (pid < 0) {
 		PRINT_PERR("fork failed\n");
-		return -1;
+		return;
 	} else if (pid == 0) {
 		execl("/bin/modprobe", "modprobe", module, "-q", NULL);
 		execl("/sbin/modprobe", "modprobe", module, "-q", NULL);
@@ -941,21 +941,17 @@ static int modprobe(const char *module)
 	} else {
 		waitpid(pid, NULL, 0);
 	}
-	return 0;
 }
 
 /*
  * Load all required kernel modules
  */
-static int load_modules(void)
+static void load_modules(void)
 {
 	int i;
 
-	for (i = 0; module_list[i]; i++) {
-		if (modprobe(module_list[i]))
-			return -1;
-	}
-	return 0;
+	for (i = 0; module_list[i]; i++)
+		modprobe(module_list[i]);
 }
 
 /*
@@ -1006,10 +1002,7 @@ int main(int argc, char *argv[])
 		PRINT_ERR("Could not parse parmline\n");
 		goto fail;
 	}
-	if (load_modules()) {
-		PRINT_ERR("Module load failed\n");
-		goto fail;
-	}
+	load_modules();
 	if (enable_zfcp_device()) {
 		PRINT_ERR("Could not enable dump device\n");
 		goto fail;

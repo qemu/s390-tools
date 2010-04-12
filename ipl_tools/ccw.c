@@ -52,22 +52,19 @@ int isccwdev(const char *devno)
 }
 
 
-int get_ccw_devno_old_sysfs(char *device, char *devno)
+int get_ccw_devno_old_sysfs(char *device)
 {
 	FILE *filp;
-	int len, errorpath, rc;
+	int errorpath;
 	char path1[4096];
 	char buf[4096];
-	char *match, *s1, *s2;
+	char *match = NULL, *s1, *s2;
 
 	errorpath = 1;
-	rc = 0;
 	sprintf(path1, "/sys/block/%s/uevent", device);
 	filp = fopen(path1, "r");
-	if (!filp) {
-		rc = -1;
-		return rc;
-	}
+	if (!filp)
+		return -1;
 	/*
 	 * the uevent file contains an entry like this:
 	 * PHYSDEVPATH=/devices/css0/0.0.206a/0.0.7e78
@@ -77,16 +74,16 @@ int get_ccw_devno_old_sysfs(char *device, char *devno)
 		if (match != NULL)
 			break;
 	}
+	fclose(filp);
+	if (!match)
+		return -1;
 	s1 =  strchr(buf, '/');
 	s2 =  strrchr(buf, '/');
-	len = s2-s1;
-	strncpy(devno, s2 + 1, sizeof(devno));
-	devno[len] = '\0';
-	fclose(filp);
+	strncpy(devno, s2 + 1, sizeof(devno) - 1);
 	return 0;
 }
 
-int get_ccw_devno_new_sysfs(char *device, char *devno)
+int get_ccw_devno_new_sysfs(char *device)
 {
 	int len, errorpath, rc;
 	char path2[4096];
@@ -119,8 +116,7 @@ int get_ccw_devno_new_sysfs(char *device, char *devno)
 			return rc;
 		}
 	}
-	strncpy(devno, s2 + 1, sizeof(devno));
-	devno[len] = '\0';
+	strncpy(devno, s2 + 1, sizeof(devno) - 1);
 	return 0;
 }
 
@@ -134,16 +130,14 @@ int get_ccw_devno_new_sysfs(char *device, char *devno)
  *
  * This does not work when booting from tape
  */
-int get_ccw_devno(char *device, char *devno)
+int get_ccw_devno(char *device)
 {
-    if (get_ccw_devno_old_sysfs(device, devno) != 0) {
-	if (get_ccw_devno_new_sysfs(device, devno) != 0) {
-		fprintf(stderr, "%s: Failed to lookup the device number\n",
-			name);
-		return -1;
-	}
-    }
-    return 0;
+	if (get_ccw_devno_old_sysfs(device) == 0)
+		return 0;
+	if (get_ccw_devno_new_sysfs(device) == 0)
+		return 0;
+	fprintf(stderr, "%s: Failed to lookup the device number\n", name);
+	return -1;
 }
 
 int get_ccw_dev(char *partition, char *device)

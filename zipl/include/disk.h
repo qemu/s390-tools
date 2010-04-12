@@ -66,6 +66,12 @@ typedef enum {
 	source_script
 } source_t;
 
+/* targetbase definition */
+typedef enum {
+	defined_as_device,
+	defined_as_name
+} definition_t;
+
 /* Disk information type */
 struct disk_info {
 	disk_type_t type;
@@ -80,6 +86,7 @@ struct disk_info {
 	char* name;
 	char* drv_name;
 	source_t source;
+	definition_t targetbase;
 };
 
 struct job_target_data;

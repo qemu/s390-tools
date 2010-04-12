@@ -169,7 +169,7 @@ static void
 dasdview_get_info(dasdview_info_t *info)
 {
 	int fd;
-	u_int64_t device_size;
+	struct dasd_eckd_characteristics *characteristics;
 
 	fd = open(info->device, O_RDONLY);
 	if (fd == -1)
@@ -201,16 +201,6 @@ dasdview_get_info(dasdview_info_t *info)
 		exit(-1);
 	}
 
-	if (ioctl(fd, BLKGETSIZE64, &device_size) != 0) {
-		close(fd);
-		zt_error_print("dasdview: ioctl error\n" \
-			"Could not retrieve device size information.\n");
-		exit(-1);
-	}
-
-	info->hw_cylinders = ((device_size / info->blksize)
-			      / info->geo.sectors) / info->geo.heads;
-
 	/* get disk information */
 	if (ioctl(fd, BIODASDINFO2, &info->dasd_info) == 0) {
 		info->dasd_info_version = 2;
@@ -223,6 +213,16 @@ dasdview_get_info(dasdview_info_t *info)
 			exit(-1);
 		}
 	}
+
+	characteristics = (struct dasd_eckd_characteristics *)
+		&info->dasd_info.characteristics;
+	if (characteristics->no_cyl == LV_COMPAT_CYL &&
+	    characteristics->long_no_cyl)
+		info->hw_cylinders = characteristics->long_no_cyl;
+	else
+		info->hw_cylinders = characteristics->no_cyl;
+
+
 	close(fd);
 }
 

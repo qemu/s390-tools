@@ -57,13 +57,22 @@ int action;		/* either CCW, FCP or NODE */
 int lsreipl(int argc, char *argv[])
 {
 	int rc;
-	char bootprog[1024], lba[1024], val[9];
+	char bootprog[1024], lba[1024], val[9], reipltype[IPL_TYPE_LEN_MAX + 1];
+	char nss_name[NSS_NAME_LEN_MAX + 1];
 
 	/* parse the command line options in getop.c */
 	parse_lsreipl_options(argc, argv);
 
-	rc = get_reipl_type();
-	if (rc == 0) {
+	rc = get_reipl_type(reipltype);
+	switch (rc) {
+	case T_NSS:
+		printf("Re-IPL type:   nss\n");
+		rc = strrd(nss_name, "/sys/firmware/reipl/nss/name");
+		if (rc != 0)
+			exit(1);
+		printf("Name:          %s\n", nss_name);
+		break;
+	case T_FCP:
 		printf("Re-IPL type: fcp\n");
 		rc = strrd(wwpn, "/sys/firmware/reipl/fcp/wwpn");
 		if (rc != 0)
@@ -90,8 +99,8 @@ int lsreipl(int argc, char *argv[])
 			printf("bootprog:    %s\n", bootprog);
 		if (strlen(lba) > 0)
 			printf("br_lba:      %s\n", lba);
-	}
-	if (rc == 1) {
+		break;
+	case T_CCW:
 		printf("Re-IPL type:   ccw\n");
 		rc = strrd(devno, "/sys/firmware/reipl/ccw/device");
 		if (rc != 0)
@@ -106,6 +115,10 @@ int lsreipl(int argc, char *argv[])
 			printf("Loadparm:      %s\n", val);
 		else
 			printf("Loadparm:      \n");
+		break;
+	default:
+		printf("Re-IPL type: %s (unknown)\n", reipltype);
+		break;
 	}
 	return 0;
 }
@@ -134,7 +147,7 @@ int reipl(int argc, char *argv[])
 					"partition: %s\n", name, partition);
 				exit(1);
 			}
-			rc = get_ccw_devno(device, devno);
+			rc = get_ccw_devno(device);
 			if (rc != 0)  {
 				fprintf(stderr, "%s: Unable to lookup device"
 					" number for device %s\n", name,

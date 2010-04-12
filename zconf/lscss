@@ -354,7 +354,7 @@ if [ $SCH_IO ] ;then
 	echo "----------------------------------------------------------------------"
     fi
     print_io | if [ $UPPERCASE ] ;then
-	tr [:lower:] [:upper:]
+	tr "[:lower:]" "[:upper:]"
     else
 	cat -
     fi
@@ -368,7 +368,7 @@ if [ $SCH_CHSC ] ;then
     echo "Device   Subchan."
     echo "-----------------"
     print_chsc | if [ $UPPERCASE ] ;then
-	tr [:lower:] [:upper:]
+	tr "[:lower:]" "[:upper:]"
     else
 	cat -
     fi

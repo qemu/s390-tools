@@ -1,7 +1,7 @@
-.TH DUMPCONF 8 "Nov 2006" "s390-tools"
+.TH DUMPCONF 8 "Nov 2009" "s390-tools"
 
 .SH NAME
-dumpconf \- Configure automatic dump for Linux on z/Series.
+dumpconf \- Configure an ON_PANIC action for Linux on System z.
 
 .SH SYNOPSIS
 .br
@@ -10,8 +10,8 @@ dumpconf \- Configure automatic dump for Linux on z/Series.
 \fBdumpconf\fR [-h|-v]
 
 .SH DESCRIPTION
-\fBdumpconf\fR reads /etc/sysconfig/dumpconf and initializes the automatic dump
-feature according to the configuration file.
+\fBdumpconf\fR reads the /etc/sysconfig/dumpconf file
+and establishes the action to be taken in case a kernel panic occurs.
 
 The following keywords can be used in the dumpconf file:
 
@@ -20,21 +20,22 @@ The following keywords can be used in the dumpconf file:
 Shutdown action in case of a kernel panic. Possible values are 'dump', 'reipl', 'dump_reipl', 'stop' and 'vmcmd':
 .br
 
-dump: trigger dump according to configuration in /etc/sysconfig/dumpconf.
+dump: trigger dump according to the configuration in /etc/sysconfig/dumpconf.
 .br
 
-reipl: trigger re-IPL according to configuration under /sys/firmware/reipl.
+reipl: trigger re-IPL according to the configuration under /sys/firmware/reipl.
 .br
 
-dump_reipl: first trigger dump according to configuration in
-/etc/sysconfig/dumpconf, then trigger re-IPL according to configuration under
-/sys/firmware/reipl.
+dump_reipl: first trigger dump according to the configuration in
+/etc/sysconfig/dumpconf, then trigger re-IPL according to the configuration
+under /sys/firmware/reipl.
 .br
 
 stop: stop Linux and enter disabled wait (default).
 .br
 
-vmcmd: trigger vm command according to 'VMCMD_X' configuration in /etc/sysconfig/dumpconf.
+vmcmd: trigger CP command according to the 'VMCMD_X' configuration in
+/etc/sysconfig/dumpconf.
 
 .TP
 \fB  - DUMP_TYPE:\fR
@@ -46,15 +47,15 @@ Device number of dump device.
 
 .TP
 \fB  - WWPN\fR
-WWPN for scsi dump device.
+WWPN for SCSI dump device.
 
 .TP
 \fB  - LUN\fR
-LUN for scsi dump device.
+LUN for SCSI dump device.
 
 .TP
 \fB  - BOOTPROG:\fR
-Boot program selector
+Boot program selector.
 
 .TP
 \fB  - BR_LBA:\fR
@@ -64,46 +65,25 @@ Boot record logical block address.
 \fB  - VMCMD_1, VMCMD_2 ... VMCMD_5:\fR
 Up to five CP commands, which are triggered in case of a kernel panic.
 
-.SH Reboot loop considerations
+.TP
+\fB - DELAY_MINUTES:\fR
+Number of minutes the activation of dumpconf is to be delayed. If this keyword
+is omitted, the default is zero, which means that
+dumpconf activates immediately during system startup.
+Specify a non-zero delay time only if you specified
+shutdown action "reipl" or "dump_reipl".
+These actions might cause a reboot loop
+if the Linux kernel crashes persistently during (or shortly after) each reboot.
 
-If you select the shutdown actions "reipl" or "dump_reipl", in rare cases a
-"reboot loop" can occur, if the Linux kernel crashes everytime after the
-reboot. If you want to prevent that scenario, one of the following two
-approaches can be taken:
+A non-zero delay time causes dumpconf to sleep in the background until the
+delay time has expired. In this case messages are written to /var/log/messages.
+By default (DELAY_MINUTES is omitted or zero) dumpconf runs in the foreground
+and informational messages are written to sysout, while
+error messages are written to syserr.
 
-1. Manual activation of dumpconf
-
-Ensure that the dumpconf service is not active by default:
-.br
-# chkconfig --del dumpconf
-
-Start dumpconf service manually:
-.br
-# service dumpconf start
-
-When your Linux system crashes, the system will be rebooted (after creating
-a dump in case of dump_reipl). Because the dumpconf script will then not be
-activated automatically, a second crash will stop the system.
-
-2. Automatic delayed activation of dumpconf
-
-Ensure that the dumpconf service is not active by default:
-.br
-# chkconfig --del dumpconf
-
-To enable delayed activation one of the following methods can be used:
-  a) Use a init script (e.g. /etc/rc.d/boot.local):
-     (sleep 10m; /sbin/service dumpconf start) &
-
-  b) Use a init script (e.g. /etc/rc.d/boot.local) together with "at":
-     echo 'echo /sbin/service dumpconf start' |at now+10min
-
-  c) Use the following crontab entry:
-     @reboot sleep 10m && /sbin/service dumpconf start
-
-In these examples, when your Linux system crashes within 10 minutes after
-the reboot, the dumpconf script is not active and a second crash will stop
-the system.
+Example: If you specified DELAY_MINUTES=10 and
+your Linux system crashes within 10 minutes after the reboot,
+then dumpconf is not yet active and the default action (stop) is triggered.
 
 .SH COMMANDS
 .TP
@@ -128,12 +108,12 @@ Print usage information, then exit.
 Print version information, then exit.
 
 .SH EXAMPLES:
-The following are examples for /etc/sysconfig/dumpconf:
+The following are examples of the /etc/sysconfig/dumpconf file:
 .br
 
 #
 .br
-# Example config for CCW dump device (DASD)
+# Example configuration for a CCW dump device (DASD)
 .br
 #
 .br
@@ -141,12 +121,14 @@ ON_PANIC=dump_reipl
 .br
 DUMP_TYPE=ccw
 .br
-DEVICE=0.0.4714
+DEVICE=0.0.1234
+.br
+DELAY_MINUTES=5
 .br
 
 #
 .br
-# Example config for FCP dump device (SCSI Disk)
+# Example configuration for an FCP dump device (SCSI Disk)
 .br
 #
 .br
@@ -154,7 +136,7 @@ ON_PANIC=dump
 .br
 DUMP_TYPE=fcp
 .br
-DEVICE=0.0.4711
+DEVICE=0.0.2345
 .br
 WWPN=0x5005076303004712
 .br
@@ -167,7 +149,7 @@ BR_LBA=0
 
 #
 .br
-# Example config for vm command on panic
+# Example configuration for CP commands on panic
 .br
 #
 .br
@@ -177,7 +159,7 @@ VMCMD_1="MESSAGE * Starting VMDUMP"
 .br
 VMCMD_2="VMDUMP"
 .br
-VMCMD_3="IPL 4711"
+VMCMD_3="IPL 3456"
 
 #
 .br
@@ -186,6 +168,8 @@ VMCMD_3="IPL 4711"
 #
 .br
 ON_PANIC=reipl
+.br
+DELAY_MINUTES=5
 
 .SH SEE ALSO
 Linux on zSeries: Using the Dump Tools

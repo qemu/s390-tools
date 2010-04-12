@@ -15,25 +15,48 @@
 # chkconfig: 0123456 01 99
 
 DUMP_CONFIG_FILE=/etc/sysconfig/dumpconf
+CMDFULL=$0
+CMD="dumpconf"
+LOCKFILE=/var/lock/subsys/$CMD
+PIDFILE=/var/run/$CMD.pid
 ERRMSG="Check $DUMP_CONFIG_FILE!"
 
 RETVAL=0
+BACKGROUND=0
+
+pr_info()
+{
+	if [ $BACKGROUND -eq 0 ]; then
+		echo "$@"
+	else
+		echo "$@" | logger -t dumpconf
+	fi
+}
+
+pr_error()
+{
+	if [ $BACKGROUND -eq 0 ]; then
+		echo "$@" >&2
+	else
+		echo "$@" | logger -t dumpconf
+	fi
+}
 
 check_environment()
 {
 	if [ ! -f $DUMP_CONFIG_FILE ]; then
-		echo "no config file found: $DUMP_CONFIG_FILE"
+		pr_error "no config file found: $DUMP_CONFIG_FILE"
 		exit 1
 	fi
 
 	if [ "$(cat /proc/filesystems|grep sysfs)" = "" ]; then
-		echo "no sysfs found" >&2
+		pr_error "no sysfs found"
 		exit 1 
 	fi
 
 	SYSFSDIR=$(cat /proc/mounts|awk '$3=="sysfs"{print $2; exit}')
 	if [ "$SYSFSDIR" = "" ]; then
-		echo "sysfs not mounted" >&2
+		pr_error "sysfs not mounted"
 		exit 1
 	fi
 
@@ -41,12 +64,12 @@ check_environment()
 	ON_PANIC_CONFIG_FILE=/$SYSFSDIR/firmware/shutdown_act\
 ions/on_panic
 	if [ ! -d $DUMP_CONFIG_DIR ]; then
-		echo "kernel has no dump on panic support"
+		pr_info "kernel has no dump on panic support"
 		exit 0
 	fi
 	REIPL_CONFIG_DIR=/$SYSFSDIR/firmware/reipl
 	if [ ! -d $REIPL_CONFIG_DIR ]; then
-		echo "kernel has no dump on panic support"
+		pr_info "kernel has no dump on panic support"
 		exit 0
 	fi
 	VMCMD_CONFIG_DIR=/$SYSFSDIR/firmware/vmcmd
@@ -90,6 +113,43 @@ Try 'dumpconf --help' for more information.
 EOF
 }
 
+cleanup_pidfile()
+{
+	if [ $(ps $1 | grep $CMD | wc -l) -eq 0 ]; then
+		rm -f $PIDFILE
+	fi
+}
+
+handle_stop_request()
+{
+	rm -f $PIDFILE 2>/dev/null
+	exit 0
+}
+
+delay_activation()
+{
+	# Open lock file with file descriptor 123
+	exec 123>$LOCKFILE
+	if flock -n -x 123; then
+		if [ -f $PIDFILE ]; then
+			# concurrent process was faster
+			exit 0
+		fi
+		trap handle_stop_request TERM
+		echo $$ > $PIDFILE
+	else
+		# Nothing to do, "dumpconf start" is already in progress
+		exit 0
+	fi
+	# Close file descriptor 123
+	exec 123>&-
+	# Do multiple sleeps in order to be interruptible
+	for ((i=0; i < $DELAY_MINUTES * 60; i++)); do
+		sleep 1
+	done
+	rm -f $PIDFILE
+}
+
 # $1: dump device bus id (e.g. 0.0.4711)
 verify_ccw_dump_device()
 {
@@ -98,7 +158,7 @@ verify_ccw_dump_device()
 		line=$(lsdasd $1)
 	fi
 	if [ "$line" == "" ]; then
-		echo "WARNING: device $1 not found!"
+		pr_info "WARNING: device $1 not found!"
 		return 1
 	fi
 	found=false
@@ -115,7 +175,7 @@ verify_ccw_dump_device()
 	if [ $? == 0 ]; then
 		return 0
 	else
-		echo "WARNING: $1 is no valid dump device!"
+		pr_info "WARNING: $1 is no valid dump device!"
 		return 1
 	fi
 }
@@ -166,28 +226,28 @@ setup_device()
 		echo $DEV > $1/$2/device
 	else
 		RETVAL=1
-		echo "ERROR: Invalid DEVICE '$DEVICE'." $ERRMSG >&2
+		pr_error "ERROR: Invalid DEVICE '$DEVICE'." $ERRMSG
 		return
 	fi
 	if [ $2 == "fcp" ]; then
 		echo $WWPN > $1/fcp/wwpn 2>/dev/null || RETVAL=1
 		if [ $RETVAL -eq 1 ]; then
-			echo "ERROR: Invalid WWPN '$WWPN'." $ERRMSG >&2
+			pr_error "ERROR: Invalid WWPN '$WWPN'." $ERRMSG
 			return
 		fi
 		echo $LUN > $1/fcp/lun 2>/dev/null || RETVAL=1
 		if [ $RETVAL -eq 1 ]; then
-			echo "ERROR: Invalid LUN '$LUN'." $ERRMSG >&2
+			pr_error "ERROR: Invalid LUN '$LUN'." $ERRMSG
 			return
 		fi
 		echo $BOOTPROG > $1/fcp/bootprog 2>/dev/null || RETVAL=1
 		if [ $RETVAL -eq 1 ]; then
-			echo "ERROR: Invalid BOOTPROG '$BOOTPROG'." $ERRMSG >&2
+			pr_error "ERROR: Invalid BOOTPROG '$BOOTPROG'." $ERRMSG
 			return
 		fi
 		echo $BR_LBA > $1/fcp/br_lba 2>/dev/null || RETVAL=1
 		if [ $RETVAL -eq 1 ]; then
-			echo "ERROR: Invalid BR_LBA '$BR_LBA'." $ERRMSG >&2
+			pr_error "ERROR: Invalid BR_LBA '$BR_LBA'." $ERRMSG
 			return
 		fi
 	fi
@@ -201,7 +261,7 @@ setup_nss_device()
 setup_reipl()
 {
 	if [ "$REIPL_TYPE" == "" ]; then
-		echo "reipl on panic configured: Using default reipl values."
+		pr_info "reipl on panic configured: Using default reipl values."
 		return
 	fi
 
@@ -210,7 +270,7 @@ setup_reipl()
 	elif [ "$REIPL_TYPE" == "nss" ]; then
 		setup_nss_device $REIPL_CONFIG_DIR
 	else
-		echo "ERROR: Unknown reipl type '$REIPL_TYPE'." $ERRMSG >&2
+		pr_error "ERROR: Unknown reipl type '$REIPL_TYPE'." $ERRMSG
 		RETVAL=1
 		return
 	fi
@@ -221,7 +281,7 @@ setup_reipl()
 		return
 	fi
 
-	echo "$REIPL_TYPE reipl device configured."
+	pr_info "$REIPL_TYPE reipl device configured."
 }
 
 setup_dump()
@@ -229,7 +289,7 @@ setup_dump()
 	if [ "$DUMP_TYPE" == "ccw" ] || [ "$DUMP_TYPE" == "fcp" ]; then
 		setup_device $DUMP_CONFIG_DIR $DUMP_TYPE
 	elif [ "$DUMP_TYPE" != "none" ]; then
-		echo "ERROR: Unknown dump type '$DUMP_TYPE'." $ERRMSG >&2
+		pr_error "ERROR: Unknown dump type '$DUMP_TYPE'." $ERRMSG
 		RETVAL=1
 		return
 	fi
@@ -241,7 +301,7 @@ setup_dump()
 		return
 	fi
 
-	echo "$ON_PANIC on panic configured: Using $DUMP_TYPE dump device."
+	pr_info "$ON_PANIC on panic configured: Using $DUMP_TYPE dump device."
 }
 
 setup_on_panic_vmcmd()
@@ -257,69 +317,69 @@ setup_on_panic_vmcmd()
 		fi
 	done
 	if [ ! -d $VMCMD_CONFIG_DIR ]; then
-		echo "ERROR: No vmcmd support. Are you running on LPAR?" >&2
+		pr_error "ERROR: No vmcmd support. Are you running on LPAR?"
 		RETVAL=1
 	elif [ "$VMCMD" == "" ]; then
-		echo "ERROR: No VMCMD_x keyword specified." $ERRMSG >&2
+		pr_error "ERROR: No VMCMD_x keyword specified." $ERRMSG
 		RETVAL=1
 	else
 		echo -en "$VMCMD" | cat > $VMCMD_CONFIG_DIR/on_panic || RETVAL=1
 	fi
 
 	if [ $RETVAL -eq 0 ]; then
-		echo "vmcmd on panic configured:"
-		echo -e "$VMCMD"
+		pr_info "vmcmd on panic configured:"
+		pr_info -e "$VMCMD"
 	fi
 }
 
 print_fcp_device()
 {
 	DEVICE=$(cat $1/fcp/device) || RETVAL=1
-	echo "device..: $DEVICE"
+	pr_info "device..: $DEVICE"
 	WWPN=$(cat $1/fcp/wwpn) || RETVAL=1
-	echo "wwpn....: $WWPN"
+	pr_info "wwpn....: $WWPN"
 	LUN=$(cat $1/fcp/lun) || RETVAL=1
-	echo "lun.....: $LUN"
+	pr_info "lun.....: $LUN"
 	BOOTPROG=$(cat $1/fcp/bootprog) || RETVAL=1
-	echo "bootprog: $BOOTPROG"
+	pr_info "bootprog: $BOOTPROG"
 	BR_LBA=$(cat $1/fcp/br_lba) || RETVAL=1
-	echo "br_lba..: $BR_LBA"
+	pr_info "br_lba..: $BR_LBA"
 }
 
 print_ccw_device()
 {
 	DEVICE=$(cat $1/ccw/device) || RETVAL=1
-	echo "device..: $DEVICE"
+	pr_info "device..: $DEVICE"
 }
 
 print_nss_name()
 {
 	NAME=$(cat $1/nss/device) || RETVAL=1
-	echo "device..: $NAME"
+	pr_info "device..: $NAME"
 }
 
 status_dump()
 {
 	CONF_DUMP_TYPE=$(cat $DUMP_CONFIG_DIR/dump_type) || RETVAL=1
 	if [ "$CONF_DUMP_TYPE" == "none" ]; then
-		echo "type....: no dump device configured"
+		pr_info "type....: no dump device configured"
 	elif [ "$CONF_DUMP_TYPE" == "ccw" ]; then
-		echo "type....: ccw"
+		pr_info "type....: ccw"
 		print_ccw_device $DUMP_CONFIG_DIR
 		verify_ccw_dump_device $(cat $DUMP_CONFIG_DIR/ccw/device)
 	elif [ "$CONF_DUMP_TYPE" == "fcp" ]; then
-		echo "type....: fcp"
+		pr_info "type....: fcp"
 		print_fcp_device $DUMP_CONFIG_DIR
 	else
-		echo "ERROR: Unknown dump device type '$CONF_DUMP_TYPE'!" >&2
-		echo "       Please check if you have the latest dumpconf package!" >&2
+		pr_error "ERROR: Unknown dump device type '$CONF_DUMP_TYPE'!"
+		pr_error "       Please check if you have the latest dumpconf package!"
 	fi
 }
 
 status_reipl()
 {
 	REIPL_TYPE=$(cat $REIPL_CONFIG_DIR/reipl_type) || RETVAL=1
-	echo "type....: $REIPL_TYPE"
+	pr_info "type....: $REIPL_TYPE"
 	if [ "$REIPL_TYPE" == "ccw" ]; then
 		print_ccw_device $REIPL_CONFIG_DIR
 	elif [ "$REIPL_TYPE" == "fcp" ]; then
@@ -327,16 +387,16 @@ status_reipl()
 	elif [ "$REIPL_TYPE" == "nss" ]; then
 		print_nss_name $REIPL_CONFIG_DIR
 	else
-		echo "ERROR: Unknown reipl device type '$REIPL_TYPE'!" >&2
-		echo "       Please check if you have the latest dumpconf package!" >&2
+		pr_error "ERROR: Unknown reipl device type '$REIPL_TYPE'!"
+		pr_error "       Please check if you have the latest dumpconf package!"
 	fi
 }
 
 status_dump_reipl()
 {
-	echo -e "\ndump:"
+	pr_info -e "\ndump:"
 	status_dump
-	echo -e "\nreipl:"
+	pr_info -e "\nreipl:"
 	status_reipl
 }
 
@@ -345,33 +405,65 @@ status_vmcmd()
 {
 	VMCMD=$(cat $VMCMD_CONFIG_DIR/on_panic) || RETVAL=1
 	if [ "$VMCMD" == "" ]; then
-		echo "WARNING: No VM command specified!"
+		pr_info "WARNING: No VM command specified!"
 	else
-		echo "---------------"
-		echo "$VMCMD"
+		pr_info "---------------"
+		pr_info "$VMCMD"
 	fi
 }
 
 start()
 {
+	if [ "$1" == "background" ]; then
+		BACKGROUND=1
+	fi
+	test -n "$DELAY_MINUTES" || DELAY_MINUTES=0
+	test "$DELAY_MINUTES" -ge 0 2>/dev/null || RETVAL=1
+	if [ $RETVAL -eq 1 ]; then
+		pr_error "ERROR: Invalid DELAY_MINUTES parameter" \
+			"'$DELAY_MINUTES'." $ERRMSG
+		return
+	fi
+	if [ $DELAY_MINUTES -gt 0 ]; then
+		if [ -f $PIDFILE ]; then
+			pr_info "A delayed instance of" $CMD \
+				"is already active."
+			return
+		fi
+		if [ $BACKGROUND -eq 1 ]; then
+			delay_activation
+		else
+			pr_info "The activation of dumpconf is being delayed" \
+				"for" $DELAY_MINUTES "minutes"
+			$CMDFULL start background &
+			return
+		fi
+	fi
 	if [ "$ON_PANIC" == "" ]; then
 		ON_PANIC="stop"
 	fi
 
-	if [ "$ON_PANIC" == "reipl" ]; then
-		setup_reipl
-	elif [ "$ON_PANIC" == "dump" ] || [ "$ON_PANIC" == "dump_reipl" ]; then
-		setup_dump
-	elif [ "$ON_PANIC" == "vmcmd" ]; then
-		setup_on_panic_vmcmd
-	elif [ "$ON_PANIC" == "stop" ]; then
-		echo "stop on panic configured."
-	else
-		echo "ERROR: Unknown 'on panic' type '$ON_PANIC'." $ERRMSG >&2
-		RETVAL=1
-	fi
+	case "$ON_PANIC" in
+		reipl)
+			setup_reipl
+			;;
+		dump|dump_reipl)
+			setup_dump
+			;;
+		vmcmd)
+			setup_on_panic_vmcmd
+			;;
+		stop)
+			pr_info "stop on panic configured."
+			;;
+		*)
+			pr_error "ERROR: Unknown 'on panic'" \
+				"type '$ON_PANIC'." $ERRMSG
+			RETVAL=1
+			;;
+	esac
 	if [ $RETVAL -eq 1 ]; then
-		return $RETVAL
+		return
 	fi
 
 	echo $ON_PANIC > $ON_PANIC_CONFIG_FILE 2> /dev/null || RETVAL=1
@@ -380,20 +472,21 @@ start()
 
 	if [ $RETVAL -eq 1 ]; then
 		echo stop > $ON_PANIC_CONFIG_FILE
-		echo "ERROR: $ON_PANIC not supported by hardware!" >&2
+		pr_error "ERROR: $ON_PANIC not supported by hardware!"
 	fi
-
-	return $RETVAL
 }
 
 stop()
 {
+	if [ -f $PIDFILE ]; then
+		kill -TERM $(cat $PIDFILE)
+	fi
 	echo none > $DUMP_CONFIG_DIR/dump_type || RETVAL=1
 	echo stop > $ON_PANIC_CONFIG_FILE || RETVAL=1
 	if [ $RETVAL -eq 0 ]; then
-		echo "Dump on panic is disabled now"
+		pr_info "Dump on panic is disabled now"
 	else
-		echo "Disabling dump on panic failed" >&2
+		pr_error "Disabling dump on panic failed"
 	fi
 	return $RETVAL
 }
@@ -401,34 +494,55 @@ stop()
 status()
 {
 	ON_PANIC=$(cat $ON_PANIC_CONFIG_FILE) || RETVAL=1
-	echo "on_panic: $ON_PANIC"
-	if [ "$ON_PANIC" == "vmcmd" ]; then
-		status_vmcmd
-	elif [ "$ON_PANIC" == "reipl" ]; then
-		status_reipl
-	elif [ "$ON_PANIC" == "dump" ]; then
-		status_dump
-	elif [ "$ON_PANIC" == "dump_reipl" ]; then
-		status_dump_reipl
-	elif [ "$ON_PANIC" != "stop" ]; then
-		echo "ERROR: Unknown on_panic type '$ON_PANIC'" >&2
+	if [ -f $PIDFILE ]; then
+		pr_info "on_panic: $ON_PANIC - dumpconf activation is being" \
+			"delayed for $DELAY_MINUTES minutes"
+	else
+		pr_info "on_panic: $ON_PANIC"
 	fi
+	case "$ON_PANIC" in
+		vmcmd)
+			status_vmcmd
+			;;
+		reipl)
+			status_reipl
+			;;
+		dump)
+			status_dump
+			;;
+		dump_reipl)
+			status_dump_reipl
+			;;
+		stop)
+			;;
+		*)
+			pr_error "ERROR: Unknown on_panic type '$ON_PANIC'"
+			;;
+	esac
 }
 
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-	printhelp
-	exit 0
-elif [ "$1" = "-v" ] || [ "$1" = "--version" ]; then
-	printversion
-	exit 0
-fi
+case "$1" in
+	-h|--help)
+		printhelp
+		exit 0
+		;;
+	-v|--version)
+		printversion
+		exit 0
+		;;
+esac
 
 check_environment
+
+# If system crashed, an invalid $PIDFILE might still exist
+if [ -f $PIDFILE ]; then
+	cleanup_pidfile $(cat $PIDFILE)
+fi
 
 # See how we were called.
 case "$1" in
 	start|restart|reload|force-reload|try-restart)
-		start
+		start $2
 		;;
 	stop)
 		stop
@@ -439,6 +553,7 @@ case "$1" in
 	*)
 		print_invalid_option $1
 		RETVAL=1
+		;;
 esac
 
 exit $RETVAL

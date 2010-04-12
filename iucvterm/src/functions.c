@@ -90,7 +90,7 @@ int iucvtty_socket(struct sockaddr_iucv *sai,
 		snprintf(temp, 9, "%-8s", service);
 		memcpy(sai->siucv_name, temp, 8);
 	} else
-		memset(sai->siucv_user_id, ' ', 8);
+		memset(sai->siucv_name, ' ', 8);
 
 	return socket(PF_IUCV, SOCK_STREAM, 0);
 }

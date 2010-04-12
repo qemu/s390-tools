@@ -954,6 +954,7 @@ check_section(struct scan_token* scan, int* index)
 	else
 		type = section_invalid;
 	memset(keyword, 0, sizeof(keyword));
+	memset(keyword_line, 0, sizeof(keyword_line));
 	line = scan[i].line;
 	/* Account for keywords */
 	for (i++; (int) scan[i].id != 0; i++) {
@@ -1052,6 +1053,8 @@ check_menu(struct scan_token* scan, int* index)
 			     scan[line].line, name);
 		return -1;
 	}
+	memset(keyword, 0, sizeof(keyword));
+	memset(keyword_line, 0, sizeof(keyword_line));
 	line = scan[i].line;
 	is_num = 0;
 	is_target = 0;

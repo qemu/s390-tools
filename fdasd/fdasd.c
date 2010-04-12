@@ -1806,6 +1806,7 @@ fdasd_check_volume (fdasd_anchor_t *anc)
 	long long blk = -1;
 	char str[LINE_LENGTH];
 	char inp_buf[INPUT_BUF_SIZE];
+	int rc = 1;
 
 	if (!anc->silent)
 		printf("reading volume label ..:");
@@ -1835,8 +1836,9 @@ fdasd_check_volume (fdasd_anchor_t *anc)
 	} else {
 	        /* didn't find VOL1 volume label */
 
-		if (anc->print_table) {
-			printf("\nCould not find VOL1 volume label.\n");
+ 		if (anc->print_table || anc->print_volser) {
+			printf("\nCannot show requested information because "
+			       "the disk label block is invalid\n");
 			return -1;
 		}
 
@@ -1849,12 +1851,12 @@ fdasd_check_volume (fdasd_anchor_t *anc)
 		else {
 			if (!anc->silent)
 				printf(" no known label\n");
-			strcpy(inp_buf,"Should I create a new one?");
+			if (!anc->auto_partition)
+				rc = yes_no("Should I create a new one?");
 		}
-                if ((!anc->print_volser) && (!anc->print_table) && 
-		    (yes_no(inp_buf) == 1)) {
-		        printf("You need a VOL1 volume label for " \
-		               "partitioning\nexiting...\n");
+                if ((!anc->print_volser) && (!anc->print_table) && (rc == 1)) {
+			printf("Disc does not contain a VOL1 label, cannot "
+			       "create partitions.\nexiting... \n");
 			fdasd_exit(anc, -1);
                 }
 
@@ -1906,7 +1908,7 @@ fdasd_check_disk_access (fdasd_anchor_t *anc)
 	format1_label_t f1;
 	int fd, pos, ro;
 
-        if ((fd = open(options.device, O_RDWR)) == -1) {
+        if ((fd = open(options.device, O_RDONLY)) == -1) {
 		snprintf(err_str, ERROR_STRING_SIZE,
 			"Could not open device '%s' " \
 			"in read-only mode!\n", options.device);
@@ -1961,7 +1963,7 @@ fdasd_get_geometry (fdasd_anchor_t *anc)
         int fd, blksize = 0;
 	dasd_information_t dasd_info;
 	char err_str[ERROR_STRING_SIZE];
-	u_int64_t device_size;
+	struct dasd_eckd_characteristics *characteristics;
 
 	if ((fd = open(options.device,O_RDONLY)) < 0) {
 		snprintf(err_str, ERROR_STRING_SIZE,
@@ -1982,20 +1984,20 @@ fdasd_get_geometry (fdasd_anchor_t *anc)
 			    "Could not retrieve blocksize information.");
 	}
 
-	if (ioctl(fd, BLKGETSIZE64, &device_size) != 0) {
-		close(fd);
-		fdasd_error(anc, unable_to_ioctl,
-			    "Could not retrieve device size information.");
-	}
-
-	anc->hw_cylinders = ((device_size / blksize) / geo.sectors) / geo.heads;
-
 	/* get disk type */
 	if (ioctl(fd, BIODASDINFO, &dasd_info) != 0) {
 	        close(fd);
 		fdasd_error(anc, unable_to_ioctl, 
 			    "Could not retrieve disk information.");
 	}
+
+	characteristics =
+		(struct dasd_eckd_characteristics *) &dasd_info.characteristics;
+	if (characteristics->no_cyl == LV_COMPAT_CYL &&
+	    characteristics->long_no_cyl)
+		anc->hw_cylinders = characteristics->long_no_cyl;
+	else
+		anc->hw_cylinders = characteristics->no_cyl;
 
 	close(fd);
 
@@ -2728,14 +2730,14 @@ main(int argc, char *argv[])
 		fdasd_auto_partition_conffile(&anchor);
 	}
 
-	if (anchor.print_table) {
-		if (rc == 0)
-			fdasd_list_partition_table(&anchor);
+	if (anchor.print_volser) {
+		fdasd_print_volser(&anchor);
 		fdasd_quit(&anchor);
 	}
 
-	if (anchor.print_volser) {
-		fdasd_print_volser(&anchor);
+	if (anchor.print_table) {
+		if (rc == 0)
+			fdasd_list_partition_table(&anchor);
 		fdasd_quit(&anchor);
 	}
 

@@ -68,10 +68,10 @@ readonly -a CU_GROUPCHANNELS=(
 )
 
 readonly -a CHPIDTYPES=(
-    [10]=OSE
-    [11]=OSD
-    [15]=OSN
-    [24]=IQD
+    [0x10]=OSE
+    [0x11]=OSD
+    [0x15]=OSN
+    [0x24]=IQD
 )
 
 # whitelist of network devices for TCP/IP stack, e.g. for Linux installers
@@ -116,7 +116,7 @@ function search_cu_tcpip() {
 # Always succeeds and returns 0.
 function search_chpt() {
     local chpidtype_number=$1
-    chpidtype_symbolic=${CHPIDTYPES[$chpidtype_number]}
+    chpidtype_symbolic=${CHPIDTYPES[$((0x$chpidtype_number))]}
     if [ "$chpidtype_symbolic" == "" ]; then
         chpidtype_symbolic="?"
     fi

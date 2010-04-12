@@ -187,8 +187,16 @@ disk_get_info(const char* device, struct job_target_data* target,
 				checkparm++;
 			}
 		}
-		if (pclose(fh) == -1) {
+		switch (pclose(fh)) {
+		case 0 :
+			/* success */
+			break;
+		case -1 :
 			error_reason("Failed to run pclose");
+			goto out_close;
+		default :
+			error_reason("Script could not determine target "
+				     "parameters");
 			goto out_close;
 		}
 		if ((!disk_is_eckd(target->targettype) && checkparm < 4) ||
@@ -236,11 +244,16 @@ disk_get_info(const char* device, struct job_target_data* target,
 		data->type = target->targettype;
 		data->partnum = 0;
 		/* Get file information */
-		if (sscanf(target->targetbase, "%d:%d", &majnum, &minnum) == 2)
+		if (sscanf(target->targetbase, "%d:%d", &majnum, &minnum)
+		    == 2) {
 			data->device = makedev(majnum, minnum);
+			data->targetbase = defined_as_device;
+		}
 		else {
 			if (stat(target->targetbase, &stats)) {
 				error_reason(strerror(errno));
+				error_text("Could not get information for "
+					   "file '%s'", target->targetbase);
 				goto out_close;
 			}
 			if (!S_ISBLK(stats.st_mode)) {
@@ -250,6 +263,7 @@ disk_get_info(const char* device, struct job_target_data* target,
 				goto out_close;
 			}
 			data->device = stats.st_rdev;
+			data->targetbase = defined_as_name;
 		}
 		goto type_determined;
 	}
@@ -647,6 +661,8 @@ disk_print_info(struct disk_info* info)
 
 	printf("  Device..........................: ");
 	disk_print_devt(info->device);
+	if (info->targetbase == defined_as_device)
+		printf("%s", footnote);
 	printf("\n");
 	if (info->partnum != 0) {
 		printf("  Partition.......................: ");
@@ -654,8 +670,11 @@ disk_print_info(struct disk_info* info)
 		printf("\n");
 	}
 	if (info->name) {
-		printf("  Device name.....................: %s%s\n",
-		       info->name, footnote);
+		printf("  Device name.....................: %s",
+		       info->name);
+		if (info->targetbase == defined_as_name)
+			printf("%s", footnote);
+		printf("\n");
 	}
 	if (info->drv_name) {
 		printf("  Device driver name..............: %s\n",
@@ -673,17 +692,19 @@ disk_print_info(struct disk_info* info)
 	       (info->partnum != 0) ? "partition" : "device");
 	printf("  Disk layout.....................: %s%s\n",
 	       disk_get_type_name(info->type), footnote);
-	printf("  Geometry - heads................: %d%s\n",
-	       info->geo.heads, footnote);
-	printf("  Geometry - sectors..............: %d%s\n",
-	       info->geo.sectors, footnote);
-	if (disk_is_large_volume(info)) {
-		/* ECKD large volume. There is not enough information
-		 * available in INFO to calculate disk cylinder size. */
-		printf("  Geometry - cylinders............: > 65534\n");
-	} else {
-		printf("  Geometry - cylinders............: %d%s\n",
-		       info->geo.cylinders, footnote);
+	if (disk_is_eckd(info->type)) {
+		printf("  Geometry - heads................: %d%s\n",
+		       info->geo.heads, footnote);
+		printf("  Geometry - sectors..............: %d%s\n",
+		       info->geo.sectors, footnote);
+		if (disk_is_large_volume(info)) {
+			/* ECKD large volume. There is not enough information
+			 * available in INFO to calculate disk cylinder size. */
+			printf("  Geometry - cylinders............: > 65534\n");
+		} else {
+			printf("  Geometry - cylinders............: %d%s\n",
+			       info->geo.cylinders, footnote);
+		}
 	}
 	printf("  Geometry - start................: %ld%s\n",
 	       info->geo.start, footnote);

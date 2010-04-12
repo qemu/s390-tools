@@ -90,7 +90,7 @@ while [ $# -ne 0 ]; do
 	case $1 in
 		-h|--help)
 			PrintUsage
-			exit 1
+			exit 0
 			;;
 		-t|--type)
 			if [ $# -lt 2 ]; then

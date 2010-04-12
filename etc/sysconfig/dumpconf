@@ -13,13 +13,19 @@
 #               /sys/firmware/reipl
 #
 
-#
+# For the actions "reipl" and "dump_reipl" the DELAY_MINUTES keyword may
+# be used to delay the activation of dumpconf.
+# Thus potential reipl loops caused by kernel panics
+# which persistently occur early in the boot process can be prevented.
+
 # Dump on ccw device (DASD) and re-IPL after dump is complete.
 # The re-IPL device, as specified under "/sys/firmware/reipl", is used.
+# The activation of dumpconf is delayed by 5 minutes.
 #
 # ON_PANIC=dump_reipl
 # DUMP_TYPE=ccw
 # DEVICE=0.0.4e13
+# DELAY_MINUTES=5
 
 #
 # Dump on fcp device (SCSI Disk)
@@ -48,5 +54,7 @@
 #
 # Re-IPL on panic
 # The re-IPL device, as specified under "/sys/firmware/reipl", is used.
+# Since the DELAY_MINUTES keyword is omitted, there is no delay and
+# dumpconf becomes active immediately during system startup.
 #
 # ON_PANIC=reipl

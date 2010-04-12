@@ -146,30 +146,25 @@ static char buffer[85];
  */
 static void vtoc_error(enum failure why, char *s1, char *s2) 
 {
-        char    error[LINE_LENGTH];
-
 	switch (why) {
 	case unable_to_open:
-	        sprintf(error, "%s opening device '%s' failed.\n%s\n",
+	        fprintf(stderr, "\n%s opening device '%s' failed.\n%s\n",
 			VTOC_ERROR, s1, s2);
 		break;
 	case unable_to_seek:
-	        sprintf(error, "%s seeking device '%s' failed.\n%s\n",
+	        fprintf(stderr, "\n%s seeking device '%s' failed.\n%s\n",
 			VTOC_ERROR, s1, s2);
 		break;
 	case unable_to_write:
-	        sprintf(error, "%s writing to device '%s' failed,\n%s\n",
+	        fprintf(stderr, "\n%s writing to device '%s' failed,\n%s\n",
 			VTOC_ERROR, s1, s2);
 		break;
 	case unable_to_read:
-	        sprintf(error, "%s reading from device '%s' failed.\n%s\n",
+	        fprintf(stderr, "\n%s reading from device '%s' failed.\n%s\n",
 			VTOC_ERROR, s1, s2);
 		break;
-	default: sprintf(error, "Fatal error\n");
+	default: fprintf(stderr, "\nFatal error\n");
 	}
-
-	fputc('\n', stderr);
-	fputs(error, stderr);
 	exit(1);
 }
 
@@ -326,7 +321,7 @@ void vtoc_volume_label_init (volume_label_t *vlabel)
 {
 	sprintf(buffer, "%84s", " ");
 	vtoc_ebcdic_enc(buffer, buffer, 84);	
-	strncpy(vlabel->volkey, buffer, 84);
+	memcpy(vlabel, buffer, 84);
 }
 
 

@@ -342,8 +342,12 @@ free_dump_fs_data(struct job_dump_fs_data* data)
 {
 	if (data->partition != NULL)
 		free(data->partition);
+	if (data->image != NULL)
+		free(data->image);
 	if (data->parmline != NULL)
 		free(data->parmline);
+	if (data->ramdisk != NULL)
+		free(data->ramdisk);
 }
 
 
@@ -431,6 +435,345 @@ job_free(struct job_data* job)
 }
 
 
+struct component_loc {
+	char *name;
+	address_t *addrp;
+	size_t size;
+	off_t align;
+};
+
+static int
+set_cl_element(struct component_loc *cl, char *name, char *filename,
+	       address_t *addrp, size_t size, off_t off, off_t align)
+{
+	struct stat stats;
+
+	cl->name = name;
+	cl->addrp = addrp;
+	cl->align = align;
+	if (size != 0) {
+		cl->size = size;
+		return 0;
+	}
+	/* Get size */
+	if (stat(filename, &stats)) {
+		error_reason(strerror(errno));
+		error_text("Could not get information for file '%s'", filename);
+		return -1;
+	}
+	cl->size = ALIGN(stats.st_size - off, MAXIMUM_PHYSICAL_BLOCKSIZE);
+	return 0;
+}
+
+static void
+sort_cl_array(struct component_loc* cl, int elements)
+{
+	int i, j, min;
+	struct component_loc swap;
+
+	/* Selection sort keeping sequence */
+	for (i = 0; i < elements - 1; i++) {
+		min = i;
+		for (j = i + 1; j < elements; j++) {
+			if (*(cl[j].addrp) == UNSPECIFIED_ADDRESS)
+				continue;
+			if ((*(cl[min].addrp) == UNSPECIFIED_ADDRESS) ||
+			    (*(cl[j].addrp) < *(cl[min].addrp)))
+				min = j;
+		}
+		if (i != min) {
+			swap = cl[i];
+			cl[i] = cl[min];
+			for (j = min; j > i + 1; j--)
+				cl[j] = cl[j - 1];
+			cl[i + 1] = swap;
+		}
+	}
+}
+
+static int
+get_ipl_components(struct job_ipl_data *ipl, struct component_loc **clp,
+		   int *nump, address_t *stage3_addrp)
+{
+	struct component_loc *cl;
+	int num;
+	int rc;
+
+	/* Get memory for image, parmline, ramdisk, loader */
+	cl = misc_calloc(4, sizeof(struct component_loc));
+	if (cl == NULL)
+		return -1;
+	/* Fill in component data */
+	num = 0;
+	rc = set_cl_element(&cl[num++], "kernel image", ipl->image,
+			    &ipl->image_addr, 0, 0x10000,
+			    MAXIMUM_PHYSICAL_BLOCKSIZE);
+	if (rc)
+		goto error;
+	if (ipl->parmline) {
+		rc = set_cl_element(&cl[num++], "parmline", NULL,
+				    &ipl->parm_addr, MAXIMUM_PARMLINE_SIZE, 0,
+				    MAXIMUM_PHYSICAL_BLOCKSIZE);
+		if (rc)
+			goto error;
+	}
+	if (ipl->ramdisk) {
+		rc = set_cl_element(&cl[num++], "initial ramdisk", ipl->ramdisk,
+			&ipl->ramdisk_addr, 0, 0, 0x10000);
+		if (rc)
+			goto error;
+	}
+	rc = set_cl_element(&cl[num++], "internal loader", NULL, stage3_addrp,
+		MAXIMUM_STAGE3_SIZE, 0, MAXIMUM_PHYSICAL_BLOCKSIZE);
+	if (rc)
+		goto error;
+	*clp = cl;
+	*nump = num;
+	return 0;
+error:
+	free(cl);
+	return rc;
+}
+
+
+static int
+get_dump_fs_components(struct job_dump_fs_data *dump_fs,
+		       struct component_loc **clp, int *nump,
+		       address_t *stage3_addrp)
+{
+	struct component_loc *cl;
+	int num;
+	int rc;
+
+	/* Get memory for image, parmline, ramdisk, loader */
+	cl = misc_calloc(4, sizeof(struct component_loc));
+	if (cl == NULL)
+		return -1;
+	/* Fill in component data */
+	num = 0;
+	rc = set_cl_element(&cl[num++], "kernel image", dump_fs->image,
+			    &dump_fs->image_addr, 0, 0x10000,
+			    MAXIMUM_PHYSICAL_BLOCKSIZE);
+	if (rc)
+		goto error;
+	rc = set_cl_element(&cl[num++], "parmline", NULL, &dump_fs->parm_addr,
+			    MAXIMUM_PARMLINE_SIZE, 0,
+			    MAXIMUM_PHYSICAL_BLOCKSIZE);
+	if (rc)
+		goto error;
+	if (dump_fs->ramdisk) {
+		rc = set_cl_element(&cl[num++], "initial ramdisk",
+				    dump_fs->ramdisk, &dump_fs->ramdisk_addr,
+				    0, 0, 0x10000);
+		if (rc)
+			goto error;
+	}
+	rc = set_cl_element(&cl[num++], "internal loader", NULL, stage3_addrp,
+			    MAXIMUM_STAGE3_SIZE, 0, MAXIMUM_PHYSICAL_BLOCKSIZE);
+	if (rc)
+		goto error;
+	*clp = cl;
+	*nump = num;
+	return 0;
+error:
+	free(cl);
+	return rc;
+}
+
+
+static int
+get_ipl_tape_components(struct job_ipl_tape_data *ipl_tape,
+			struct component_loc **clp, int *nump)
+{
+	struct component_loc *cl;
+	int num;
+	int rc;
+
+	/* Get memory for image, parmline, ramdisk */
+	cl = misc_calloc(3, sizeof(struct component_loc));
+	if (cl == NULL)
+		return -1;
+	/* Fill in component data */
+	num = 0;
+	rc = set_cl_element(&cl[num++], "kernel image", ipl_tape->image,
+			    &ipl_tape->image_addr, 0, 0x10000,
+			    MAXIMUM_PHYSICAL_BLOCKSIZE);
+	if (rc)
+		goto error;
+	if (ipl_tape->parmline) {
+		rc = set_cl_element(&cl[num++], "parmline", NULL,
+				    &ipl_tape->parm_addr, MAXIMUM_PARMLINE_SIZE,
+				    0, MAXIMUM_PHYSICAL_BLOCKSIZE);
+		if (rc)
+			goto error;
+	}
+	if (ipl_tape->ramdisk) {
+		rc = set_cl_element(&cl[num++], "initial ramdisk",
+				    ipl_tape->ramdisk, &ipl_tape->ramdisk_addr,
+				    0, 0, 0x10000);
+		if (rc)
+			goto error;
+	}
+	*clp = cl;
+	*nump = num;
+	return 0;
+error:
+	free(cl);
+	return rc;
+}
+
+
+static int
+check_component_address_data(struct component_loc *cl, int num, char *name)
+{
+	int i;
+
+	/* Check for address limit */
+	for (i = 0; i < num; i++) {
+		if (*cl[i].addrp == UNSPECIFIED_ADDRESS)
+			continue;
+		if (*cl[i].addrp + cl[i].size > ADDRESS_LIMIT) {
+			if (name != NULL)
+				error_text("Section '%s'", name);
+			error_reason("Component '%s' exceeds available address "
+				     "space (limit is 0x%08x)", cl[i].name,
+				     ADDRESS_LIMIT);
+			return -1;
+		}
+	}
+	/* Check for overlap */
+	for (i = 0; i < num - 1; i++) {
+		if (*cl[i].addrp == UNSPECIFIED_ADDRESS ||
+		    *cl[i + 1].addrp == UNSPECIFIED_ADDRESS)
+			continue;
+		if (*cl[i].addrp + cl[i].size > *cl[i + 1].addrp) {
+			if (name != NULL)
+				error_text("Section '%s'", name);
+			error_reason("Components '%s' and '%s' overlap",
+				     cl[i].name, cl[i + 1].name);
+			return -1;
+		}
+	}
+	return 0;
+}
+
+
+static int
+finalize_component_address_data(struct component_loc *cl, int num)
+{
+	struct component_loc swap;
+	address_t addr;
+	int i;
+	int j;
+	int k;
+
+	/* Calculate unspecified addresses */
+	for (i = 0; i < num; i++) {
+		if (*cl[i].addrp != UNSPECIFIED_ADDRESS)
+			continue;
+		for (j = -1; j < i; j++) {
+			if (j < 0) {
+				/* Try address before first component */
+				addr = MINIMUM_ADDRESS;
+			} else {
+				/* Try address after component j */
+				addr = *cl[j].addrp + cl[j].size;
+				if (addr < MINIMUM_ADDRESS)
+					addr = MINIMUM_ADDRESS;
+			}
+			addr = ALIGN(addr, cl[i].align);
+			if (addr + cl[i].size > ADDRESS_LIMIT) {
+				error_text("Could not fit component '%s' into "
+					   "available address space",
+					   cl[i].name);
+				return -1;
+			}
+			/* Check for enough room */
+			if (*cl[j + 1].addrp != UNSPECIFIED_ADDRESS &&
+			    addr + cl[i].size > *cl[j + 1].addrp)
+				continue;
+			*cl[i].addrp = addr;
+			/* If there is no next component we are done */
+			if (i == j + 1)
+				break;
+			/* Restore sort order */
+			swap = cl[j + 1];
+			cl[j + 1] = cl[i];
+			for (k = i; k > j + 2; k--)
+				cl[k] = cl[k - 1];
+			cl[j + 2] = swap;
+			break;
+		}
+	}
+	return 0;
+}
+
+
+static int
+finalize_ipl_address_data(struct job_ipl_data* ipl, char *name)
+{
+	struct component_loc *cl;
+	int num;
+	address_t stage3_addr = DEFAULT_STAGE3_ADDRESS;
+	int rc;
+
+	rc = get_ipl_components(ipl, &cl, &num, &stage3_addr);
+	if (rc)
+		return rc;
+	sort_cl_array(cl, num);
+	rc = check_component_address_data(cl, num, name);
+	if (rc)
+		goto out_free;
+	rc = finalize_component_address_data(cl, num);
+out_free:
+	free(cl);
+	return rc;
+}
+
+
+static int
+finalize_dump_fs_address_data(struct job_dump_fs_data* dump_fs, char *name)
+{
+	struct component_loc *cl;
+	int num;
+	address_t stage3_addr = DEFAULT_STAGE3_ADDRESS;
+	int rc;
+
+	rc = get_dump_fs_components(dump_fs, &cl, &num, &stage3_addr);
+	if (rc)
+		return rc;
+	sort_cl_array(cl, num);
+	rc = check_component_address_data(cl, num, name);
+	if (rc)
+		goto out_free;
+	rc = finalize_component_address_data(cl, num);
+out_free:
+	free(cl);
+	return rc;
+}
+
+
+static int
+finalize_ipl_tape_address_data(struct job_ipl_tape_data* ipl_tape, char *name)
+{
+	struct component_loc *cl;
+	int num;
+	int rc;
+
+	rc = get_ipl_tape_components(ipl_tape, &cl, &num);
+	if (rc)
+		return rc;
+	sort_cl_array(cl, num);
+	rc = check_component_address_data(cl, num, name);
+	if (rc)
+		goto out_free;
+	rc = finalize_component_address_data(cl, num);
+out_free:
+	free(cl);
+	return rc;
+}
+
+
 static int
 check_job_ipl_data(struct job_ipl_data *ipl, char* name)
 {
@@ -460,7 +803,7 @@ check_job_ipl_data(struct job_ipl_data *ipl, char* name)
 			return rc;
 		}
 	}
-	return 0;
+	return finalize_ipl_address_data(ipl, name);
 }
 
 
@@ -526,7 +869,31 @@ check_job_dump_fs_data(struct job_dump_fs_data* dump_fs, char* name)
 			return rc;
 		}
 	}
-	return 0;
+
+	/* Add data needed to convert fs dump job to IPL job */
+	rc = misc_check_readable_file(FSDUMP_IMAGE);
+	if (rc) {
+		error_text("Need external file '%s' for file system dump",
+			   FSDUMP_IMAGE);
+		return rc;
+	}
+	dump_fs->image = misc_strdup(FSDUMP_IMAGE);
+	if (dump_fs->image == NULL)
+		return -1;
+	dump_fs->image_addr = DEFAULT_IMAGE_ADDRESS;
+
+	/* Ramdisk is no longer required with new initramfs dump system */
+	if (misc_check_readable_file(FSDUMP_RAMDISK))
+		dump_fs->ramdisk = NULL;
+	else {
+		dump_fs->ramdisk = misc_strdup(FSDUMP_RAMDISK);
+		if (dump_fs->ramdisk == NULL)
+			return -1;
+		dump_fs->ramdisk_addr = UNSPECIFIED_ADDRESS;
+	}
+
+	dump_fs->parm_addr = DEFAULT_PARMFILE_ADDRESS;
+	return finalize_dump_fs_address_data(dump_fs, name);
 }
 
 
@@ -606,7 +973,7 @@ check_job_ipl_tape_data(struct job_ipl_tape_data *ipl, char* name)
 			return rc;
 		}
 	}
-	return 0;
+	return finalize_ipl_tape_address_data(ipl, name);
 }
 
 static int
@@ -671,6 +1038,7 @@ check_job_mvdump_data(struct job_mvdump_data* dump, char* name)
 	return 0;
 }
 
+
 static int
 check_job_data(struct job_data* job)
 {
@@ -696,23 +1064,28 @@ check_job_data(struct job_data* job)
 	case job_print_version:
 		break;
 	case job_ipl:
-		return check_job_ipl_data(&job->data.ipl, job->name);
+		rc = check_job_ipl_data(&job->data.ipl, job->name);
+		break;
 	case job_menu:
-		return check_job_menu_data(&job->data.menu);
+		rc = check_job_menu_data(&job->data.menu);
+		break;
 	case job_segment:
-		return check_job_segment_data(&job->data.segment, job->name);
+		rc = check_job_segment_data(&job->data.segment, job->name);
+		break;
 	case job_dump_partition:
-		return check_job_dump_data(&job->data.dump, job->name);
+		rc = check_job_dump_data(&job->data.dump, job->name);
+		break;
 	case job_dump_fs:
-		return check_job_dump_fs_data(&job->data.dump_fs, job->name);
+		rc = check_job_dump_fs_data(&job->data.dump_fs, job->name);
+		break;
 	case job_ipl_tape:
-		return check_job_ipl_tape_data(&job->data.ipl_tape, job->name);
+		rc = check_job_ipl_tape_data(&job->data.ipl_tape, job->name);
+		break;
 	case job_mvdump:
-		return check_job_mvdump_data(&job->data.mvdump, job->name);
+		rc = check_job_mvdump_data(&job->data.mvdump, job->name);
 	}
-	return 0;
+	return rc;
 }
-
 
 static int
 extract_address (char* string, address_t* address)
@@ -953,7 +1326,7 @@ get_job_from_section_data(char* data[], struct job_data* job, char* section)
 			if (extract_address(job->data.ipl.ramdisk,
 					    &job->data.ipl.ramdisk_addr)) {
 				job->data.ipl.ramdisk_addr =
-					DEFAULT_RAMDISK_ADDRESS;
+					UNSPECIFIED_ADDRESS;
 			}
 		}
 		break;
@@ -982,14 +1355,16 @@ get_job_from_section_data(char* data[], struct job_data* job, char* section)
 		if (rc)
 			return rc;
 		/* Fill in name and address of ramdisk file */
-		job->data.ipl_tape.ramdisk_addr = DEFAULT_RAMDISK_ADDRESS;
 		if (data[(int) scan_keyword_ramdisk] != NULL) {
 			job->data.ipl_tape.ramdisk =
 				misc_strdup(data[(int) scan_keyword_ramdisk]);
 			if (job->data.ipl_tape.ramdisk == NULL)
 				return -1;
-			extract_address(job->data.ipl_tape.ramdisk,
-					&job->data.ipl_tape.ramdisk_addr);
+			if (extract_address(job->data.ipl_tape.ramdisk,
+					    &job->data.ipl_tape.ramdisk_addr)) {
+				job->data.ipl_tape.ramdisk_addr =
+					UNSPECIFIED_ADDRESS;
+			}
 		}
 		break;
 	case section_segment:

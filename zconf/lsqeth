@@ -25,7 +25,7 @@
 #  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 ########################################################################
  
-#Globael variables
+#Global variables
 script_name=${0##*/}                     # name of this script
 format=0
 device=0				 # device name specified by user
@@ -45,7 +45,7 @@ format_array=( cdev0 cdev1 cdev2
 	       checksumming 
 	       priority_queueing 
 	       route4 route6 
-	       n/a 
+	       layer2
 	       buffer_count )	 
 # Array for normal output (only for sysfs systems)
 output_array=( if_name 
@@ -63,7 +63,8 @@ output_array=( if_name
 	       buffer_count 
 	       add_hhlen
 	       layer2 
-	       large_send )
+	       large_send
+	       isolation )
 # Array for sysfs values
 sysfs_entries=( "sw checksumming" "hw checksumming" "no checksumming"
 		"always queue 0" "always queue 1" 
@@ -119,8 +120,8 @@ function __usage
 {
     printf '%s %s %s\n\n' "Usage:" $script_name "[-p] [--help] [<INTERFACE>]"
     printf '  %s\n'   "Description:"
-    printf '  \t\t%s\n\n' "The shell script list all QETH based networking devices."
-    printf '\t\t%s\n\n' "-p | --proc: list all devices in /proc/qeth format"
+    printf '                %s\n\n' "The shell script list all QETH based networking devices."
+    printf '                %s\n\n' "-p | --proc: list all devices in /proc/qeth format"
     printf '  %s\n' "<INTERFACE>:  List only attributes of specified interface."
     exit 1
 }
@@ -258,7 +259,7 @@ function __print_normal_format
 	countd=${#output_array[@]}
 	countd=$((countd-1))
 
-	printf 'Device name\t\t\t: %-20s\n' "${format_array_print[0]}"
+	printf 'Device name                  : %-20s\n' "${format_array_print[0]}"
 	echo '---------------------------------------------'
 	
 	while [ "$countc" -le "$countd" ]
@@ -270,7 +271,7 @@ function __print_normal_format
 			 fi
 			fi 
 			if [ "${format_array_print[$countc]}" != '' ] && [ "$rc" = 0 ]; then
-				   printf '\t%-20s\t: %s\n' "${output_array[$countc]}" "${format_array_print[$countc]}"
+				   printf '        %-20s : %s\n' "${output_array[$countc]}" "${format_array_print[$countc]}"
 			fi
 			countc=$((countc+1))
 		done
@@ -291,9 +292,9 @@ function __print_normal_format
 				while [ "$count" -lt ${#temp[*]} ]
 					do
 						if [ "$countb" -gt 0 ]; then
-							printf '\t\t\t\t: %s\n' "${temp[$count]}"
+							printf '                                : %s\n' "${temp[$count]}"
 						else
-							printf '\t%-20s\t: %s\n' $m "${temp[$count]}"
+							printf '        %-20s : %s\n' $m "${temp[$count]}"
 						fi
 						count=$(($count+1))
 						countb=$(($countb+1))
@@ -347,7 +348,7 @@ fi
 device_list_temp="`ls $interface_dir`"
 
 if [ $format = 1 ]; then
-	echo "devices                    CHPID interface  cardtype       port chksum prio-q'ing rtr4 rtr6 fsz   cnt"
+	echo "devices                    CHPID interface  cardtype       port chksum prio-q'ing rtr4 rtr6 lay'2 cnt"
 	echo "-------------------------- ----- ---------- -------------- ---- ------ ---------- ---- ---- ----- -----"
 fi
 #
@@ -418,13 +419,6 @@ for k in ${device_list}
 						fi
 					fi
 				fi
-			fi
-			#
-			# There is no entry for buffersize in sysfs
-			# therefore n/a
-			#
-			if [ $format = 1 ]; then
-				format_array_print[11]="n/a"
 			fi
 	done
 case "$format" in

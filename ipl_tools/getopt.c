@@ -45,7 +45,7 @@ const char *const usage_ripl =
 "OPTIONS:\n"
 "  -d, --device <DEVICE>  Number of the IPL device (ccw) or adapter (fcp)\n"
 "  -l  --lun <LUN>        Logical unit number of the IPL device\n"
-"  -w  --wwpn <WWPN>>      World Wide Port Name of the IPL device\n"
+"  -w  --wwpn <WWPN>      World Wide Port Name of the IPL device\n"
 "  -b, --bootprog <BPROG> Bootprog specification\n"
 "  -L, --loadparm <PARM> Loadparm specification\n"
 "  -h, --help             Print this help, then exit\n"
@@ -60,7 +60,6 @@ const char *const usage_sa =
 "  halt      System has been shut down (e.g. shutdown -h -H now)\n"
 "  poff      System has been shut down for power off (e.g. shutdown -h -P now)\n"
 "  reboot    System has been shut down for reboot (e.g. shutdown -r)\n"
-"  panic     System has been shut down after a kernel panic\n"
 "  Note: Depending on the distribution, \"halt\" might be mapped to \"poff\".\n"
 "\n"
 "ACTION specifies the action to be performed:\n"
@@ -636,16 +635,6 @@ void parse_shutdown_options(int argc, char **argv)
 			if (action == 4 && rc == 0) {
 				rc = ustrwrt(argv[3],
 					"/sys/firmware/vmcmd/on_reboot");
-			}
-			break;
-		case 3:
-			rc = strwrt(argv[2],
-				"/sys/firmware/shutdown_actions/on_panic");
-			if (action == 4 && rc == 0) {
-				/*rc = ustrwrt(argv[3],
-					"/sys/firmware/vmcmd/on_reboot"); */
-				rc = ustrwrt(argv[3],
-					"/sys/firmware/vmcmd/on_panic");
 			}
 			break;
 		}

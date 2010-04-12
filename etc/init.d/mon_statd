@@ -22,7 +22,6 @@ PROCD_PATH=/usr/sbin/$PROCD
 CONFIG_FILE=/etc/sysconfig/$DAEMON
 FSSTATD_PID_FILE=/var/run/$FSSTATD.pid
 PROCD_PID_FILE=/var/run/$PROCD.pid
-RETVAL=0
 
 # source function library
 . /lib/lsb/init-functions
@@ -32,68 +31,81 @@ if [ -f $CONFIG_FILE ]; then
 	. $CONFIG_FILE
 fi
 
-start()
+load_kernel_module()
 {
 	if [ ! -e /dev/monwriter ]; then
 		echo "Loading monwriter module..."
 		modprobe monwriter 2>&1
-		if [ "$?" -ne 0 ]; then
+		if [ $? -ne 0 ]; then
 			exit 1
 		fi
-		while [ ! -e /dev/monwriter ]; do
-			sleep 0
-		done
+		udevsettle
+		if [ $? -ne 0 ]; then
+			exit 1
+		fi
 	fi
+}
 
-	if [ ! -f $FSSTATD_PID_FILE -a "$FSSTAT" = "yes" ]; then
-		echo -n $"Starting $FSSTATD:"
-		$FSSTATD_PATH -i $FSSTAT_INTERVAL
-		if [ $? == 0 ]; then
+start_daemon()
+{
+	local daemon_name=$1
+	local daemon_interval=$2
+	local daemon_pid_file=$3
+	local daemon_path=$4
+
+	if [ ! -f $daemon_pid_file ]; then
+		load_kernel_module
+		echo -n "Starting $daemon_name:"
+		$daemon_path -i $daemon_interval
+		if [ $? -eq 0 ]; then
 			touch /var/lock/subsys/mon_statd
 			log_success_msg
 		else
 			log_failure_msg
 		fi
-	elif [ "$FSSTAT" = "yes" ]; then
-		echo "$FSSTATD (pid $(cat $FSSTATD_PID_FILE)) is already running..."
+	else
+		echo "$daemon_name (pid $(cat $daemon_pid_file)) is already running..."
+	fi
+}
+	
+start()
+{
+	if [ "$FSSTAT" = "yes" ]; then
+		start_daemon $FSSTATD $FSSTAT_INTERVAL $FSSTATD_PID_FILE \
+			$FSSTATD_PATH
 	fi
 
-	if [ ! -f $PROCD_PID_FILE -a "$PROC" = "yes" ]; then
-		echo -n $"Starting $PROCD:"
-		$PROCD_PATH -i $PROC_INTERVAL
-		if [ $? == 0 ]; then
-			touch /var/lock/subsys/mon_statd
-			log_success_msg
-		else
-			log_failure_msg
-		fi
-	elif [ "$PROC" = "yes" ]; then
-		echo "$PROCD (pid $(cat $PROCD_PID_FILE)) is already running..."
+	if [ "$PROC" = "yes" ]; then
+		start_daemon $PROCD $PROC_INTERVAL $PROCD_PID_FILE \
+			$PROCD_PATH
 	fi
-	echo
+}
+
+stop_daemon()
+{
+	local daemon_name=$1
+	local daemon_pid_file=$2
+	local daemon_path=$3
+
+	echo -n "Stopping $daemon_name:"
+	if [ -f $daemon_pid_file ]; then
+		killproc $daemon_path -TERM
+		log_success_msg
+		rm -f $daemon_pid_file
+	else
+		log_failure_msg
+	fi
 }
 
 stop()
 {
-	echo -n $"Stopping $FSSTATD:"
-	if [ -f $FSSTATD_PID_FILE ]; then
-		killproc $FSSTATD_PATH -TERM
-		log_success_msg
-		rm -f $FSSTATD_PID_FILE
-	else
-		log_failure_msg
+	if [ "$FSSTAT" = "yes" ]; then
+		stop_daemon $FSSTATD $FSSTATD_PID_FILE $FSSTATD_PATH
 	fi
-
-	echo -n $"Stopping $PROCD:"
-	if [ -f $PROCD_PID_FILE ]; then
-		killproc $PROCD_PATH -TERM
-		log_success_msg
-		rm -f $PROCD_PID_FILE
-	else
-		log_failure_msg
+	if [ "$PROC" = "yes" ]; then
+		stop_daemon $PROCD $PROCD_PID_FILE $PROCD_PATH
 	fi
 	rm -f /var/lock/subsys/mon_statd
-	echo
 }
 
 restart() {
@@ -101,20 +113,23 @@ restart() {
 	start
 }
 
+status_daemon()
+{
+	local daemon_name=$1
+	local daemon_pid_file=$2
+	local daemon_interval=$3
+
+	if [ ! -f $daemon_pid_file ]; then
+		echo "$daemon_name is not running."
+	else
+		echo "$daemon_name (pid $(cat $daemon_pid_file), interval: $daemon_interval) is running."
+	fi
+}
+
 status()
 {
-	if [ ! -f $FSSTATD_PID_FILE ]; then
-		echo "$FSSTATD is not running."
-	else
-		echo "$FSSTATD (pid $(cat $FSSTATD_PID_FILE), interval: $FSSTAT_INTERVAL) is running."
-	fi
-
-	if [ ! -f $PROCD_PID_FILE ]; then
-		echo "$PROCD is not running."
-	else
-		echo "$PROCD (pid $(cat $PROCD_PID_FILE), interval: $PROC_INTERVAL) is running."
-	fi
-	echo
+	status_daemon $FSSTATD $FSSTATD_PID_FILE $FSSTAT_INTERVAL
+	status_daemon $PROCD $PROCD_PID_FILE $PROC_INTERVAL
 }
 
 # How are we called?
@@ -133,7 +148,7 @@ case "$1" in
 		;;
 	*)
 		echo "Usage: $DAEMON {start|stop|status|restart|reload}"
-		RETVAL=1
+		exit 1
 esac
 
-exit $RETVAL
+exit 0

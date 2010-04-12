@@ -352,8 +352,11 @@ int main(int argc, char **argv)
 	verbose = 0;
 
 	init_opts(&opts);
-	if ( (rc = parse_params(argc, argv, &opts)) )
+	if ( (rc = parse_params(argc, argv, &opts)) ) {
+		if (rc == 1)
+			rc = 0;
 		goto out;
+	}
 	if ( (rc = check_opts(&opts, &cfg)) )
 		goto out;
 

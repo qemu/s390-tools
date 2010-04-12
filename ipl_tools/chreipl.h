@@ -34,6 +34,9 @@ extern char saction[8];
 extern char name[256];
 extern int action;
 
+#define IPL_TYPE_LEN_MAX	100
+#define NSS_NAME_LEN_MAX	8
+
 #define ACT_CCW		1
 #define ACT_FCP		2
 #define ACT_NODE	3
@@ -63,10 +66,10 @@ int is_valid_case(char *c);
 int is_valid_action(char *action);
 void parse_shutdown_options(int argc, char **argv);
 void strlow(char *s);
-int get_ccw_devno(char *device, char *devno);
-int get_reipl_type(void);
+int get_ccw_devno(char *device);
+int get_reipl_type(char *reipltype);
 void parse_lsreipl_options(int argc, char **argv);
-int get_ipl_type();
+int get_ipl_type(char *reipltype);
 int get_ipl_loadparam(void);
 void print_ipl_settings(void);
 int get_sa(char *action, char *file);

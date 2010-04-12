@@ -83,8 +83,11 @@ int is_valid_case(char *action)
 		rc = 1;
 	if (strncmp(action, "reboot", 6) >= 0 && length == 6)
 		rc = 2;
-	if (strncmp(action, "panic", 5) >= 0 && length == 5)
-		rc = 3;
+	if (strncmp(action, "panic", 5) >= 0 && length == 5) {
+		fprintf(stderr,	"%s: Please use \"service dumpconf\" for "
+			"configuring the panic action\n", name);
+		exit(1);
+	}
 	return rc;
 }
 

@@ -224,7 +224,7 @@ disk_get_cache (char* device)
 	attrib_data_t attrib_data;
 	
 	/* Open device file */
-	fd = open (device, O_RDWR);
+	fd = open (device, O_RDONLY);
 	if (fd == -1) {
 		error_print ("<%s> - %s", device, strerror (errno));
 		return -1;
@@ -269,7 +269,7 @@ disk_set_cache (char* device, char* cache, char* no_cyl)
 	}
 
 	/* Open device file */
-	fd = open (device, O_RDWR);
+	fd = open (device, O_RDONLY);
 	if (fd == -1) {
 		error_print ("<%s> - %s", device, strerror (errno));
 		return -1;
@@ -298,7 +298,7 @@ disk_reserve (char* device)
 	int fd;
 
 	/* Open device file */
-	fd = open (device, O_RDWR);
+	fd = open (device, O_RDONLY);
 	if (fd == -1) {
 		error_print ("<%s> - %s", device, strerror (errno));
 		return -1;
@@ -327,7 +327,7 @@ disk_release (char* device)
 	int fd;
 
 	/* Open device file */
-	fd = open (device, O_RDWR);
+	fd = open (device, O_RDONLY);
 	if (fd == -1) {
 		error_print ("<%s> - %s", device, strerror (errno));
 		return -1;
@@ -358,7 +358,7 @@ disk_slock (char* device)
 	int fd;
 
 	/* Open device file */
-	fd = open (device, O_RDWR);
+	fd = open (device, O_RDONLY);
 	if (fd == -1) {
 		error_print ("<%s> - %s", device, strerror (errno));
 		return -1;
@@ -556,7 +556,7 @@ disk_profile (char* device, char* prof_item)
 	dasd_profile_info_t dasd_profile_info;
 
 	/* Open device file */
-	fd = open (device, O_RDWR);
+	fd = open (device, O_RDONLY);
 	if (fd == -1) {
 		error_print ("<%s> - %s", device, strerror (errno));
 		return -1;
@@ -597,7 +597,7 @@ disk_reset_prof (char* device)
 	int fd;
 
 	/* Open device file */
-	fd = open (device, O_RDWR);
+	fd = open (device, O_RDONLY);
 	if (fd == -1) {
 		error_print ("<%s> - %s", device, strerror (errno));
 		return -1;

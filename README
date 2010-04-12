@@ -1,4 +1,4 @@
-s390-tools (1.8.3)
+s390-tools (1.8.4)
    Category operating system. Contains the source tree of a set of
    user space utilities that should to be used together with the
    zSeries (s390) Linux kernel and device drivers.
@@ -23,6 +23,7 @@ s390-tools (1.8.3)
    * udev rules:
      - 59-dasd.rules: rules for unique DASD device nodes created in /dev/disk/.
      - 57-osasnmpd.rules: udev rules for osasnmpd.
+     - 60-readahead.rules: udev rules to set increased "default max readahead".
 
    * zipl:
      Make DASDs or tapes bootable for system IPL or system dump.
@@ -181,6 +182,120 @@ Dependencies:
 
 Release History:
 ================
+1.8.4
+    Added new tools:
+    - 60-readahead.rules: udev rules to set increased "default max readahead"
+          The current "default max readahead" defined by the kernel is too
+          small for s390. Add udev rule to set a better default value. This
+          will increase sequential read performance up to 40%.
+
+    Changes of existing tools:
+     - zipl: Improve I/O error recovery during IPL
+          Change the boot loader code to handle temporary path errors and link
+          flapping during IPL.
+
+     - zipl: Remove DEFAULT_RAMDISK_ADDRESS
+          Using the default value has been replaced by calculating the address
+          dependent on the image size.
+
+     - lsqeth: Introduce "lay'2" column for "lsqeth -p"
+          Add new qeth attribute "isolation".
+
+     - qethconf: Indicate command failure and show message list
+          When qethconf detects a bad exit status of its issued echo
+          command, an error message is presented to the user.
+          In addition possible reasons for command failure can be
+          listed with "qethconf list_msg".
+
+     - dumpconf: Prevent reipl loop for dump on panic
+          A new DELAY_MINUTES keyword is introduced in the dumpconf
+          configuration file. The keyword delays the activation of dumpconf to
+          prevent potential re-IPL loops.
+
+     - dbginfo: Add new attributes
+
+    Bug Fixes:
+     - cpuplugd: Fix file handling in get_cmmpages_size()
+
+     - fdasd, dasdinfo, tunedasd: Fix handling of read-only devices
+          A as long as a tool does not require write access do a block device,
+          it should open the device in read-only mode. Otherwise opening the
+          device may fail, and usability of the tool on read-only devices is
+          unnecessarily restricted.
+
+     - fdasd: Fix auto mode behavior
+          Fix the misbehavior of fdasd in case the -a or -i option is specified
+          and the label block is broken. Previously it asked interactively for
+          a new label. Now it exits with an error message.
+
+     - dasdview, fdasd: Fix floating point error for unformatted devices
+          When executed on an unformatted device the tools dasdview and fdasd
+          will end with an floating point exception error.
+          The reason for the error lies in the fact that we cannot rely on the
+          HDIO_GETGEO ioctl to report a correct number of cylinders and so we
+          compute the number of cylinders from the device size. However,
+          for unformatted devices the device size is zero and thus our
+          computation ends with a floating point exception.
+          To solve this issue read the correct number of cylinders from
+          the DASD device characteristics, which can be found in the data
+          returned by the BIODASDINFO ioctl.
+
+     - libvtoc: Fix string overflow in vtoc_volume_label_init()
+          Originally it tries to copy a 84B string into 4B field and reset also
+          the other fields through the overflow. This doesn't work with recent
+          GCC versions.
+
+     - mon_statd: Improve init script
+          * stop: Do not print error messages if a daemon is not configured.
+          * start: Do not load module if no daemon is configured.
+          * Remove useless newlines.
+
+     - lscss: Fix uppercase conversion (appeared with -u option)
+
+     - lstape: Help function returns 1, although it was successful
+          Changed exit status of "lstape --help" from 1 to 0.
+
+     - znetconf: Index into chpidtype lookup table must be hex
+          Network subchannels with CHPID type containing non-decimal digits,
+          i.e. a-f, cause lsznet.raw errors. The value of the sysfs attribute
+          "type" of a CHPID is hex, but the lookup table index in the bash
+          script must be decimal. To solve the problem, we now
+          interpret "type" as hex number when used as lookup table index.
+
+     - chreipl: Fix SIGSEGV in "chreipl node"
+          When calling "chreipl node /dev/dasdxy" chreipl crashes with SIGSEGV.
+          The problem is a missing check in get_ccw_devno_old_sysfs(). Besides
+          of that at two places strncpy() was called with the wrong size.
+
+     - chshut: Disable panic action
+          The panic action should be configured using the dumpconf service.
+          Therefore we disable the possibility to configure it with chshut in
+          order to avoid conflicts.
+
+     - lsreipl: Add missing NSS support
+
+     - vmconvert: Ensure null termination of progress bar string
+          The progress bar shows control characters at end of line, because
+          one variable responsible for the progress bar has not been
+          initialized. We now initialize this variable correctly.
+
+     - vmconvert, zfcpdump_v2: Set correct LKCD end marker flag
+
+     - zfcpdump_v2: Ignore failure of modprobe
+          It is possible that all modules are built-in the zfcpdump kernel.
+          Therefore modprobe of those modules will fail and we must not
+          check the return value.
+
+     - ziomon: ziorep_traffic/utilization return 1 when called with -h & -v
+          These two tools return 1 when -h or -v are used as arguments. Changed
+          the return code in these cases to 0.
+
+     - zipl: zfcp dump partition error
+          The info structure was used after it was freed. This leads to wrong
+          partition information on the zfcp dump device. Therefore SCSI
+          dumps may fail. To fix this, we free the info structure after last
+          usage.
+
 1.8.3
     Changes of existing tools:
      - zipl: Add support for device mapper devices.

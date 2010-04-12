@@ -21,10 +21,10 @@ vm_convert(const char* inputFileName, const char* outputFileName,
 			{
 				VMDump64Big* vmdump;
 				LKCDDump64* lkcddump;
-				 
+
 				vmdump = new VMDump64Big(inputFileName);
 				vmdump->printInfo();
-				lkcddump = new LKCDDump64(vmdump, 
+				lkcddump = new LKCDDump64(vmdump,
 						vmdump->getRegisterContent());
 				lkcddump->writeDump(outputFileName);
 				delete vmdump;
@@ -35,10 +35,10 @@ vm_convert(const char* inputFileName, const char* outputFileName,
 			{
 				VMDump64* vmdump;
 				LKCDDump64* lkcddump;
-				
+
 				vmdump = new VMDump64(inputFileName);
 				vmdump->printInfo();
-				lkcddump = new LKCDDump64(vmdump, 
+				lkcddump = new LKCDDump64(vmdump,
 						vmdump->getRegisterContent());
 				lkcddump->writeDump(outputFileName);
 				delete vmdump;
@@ -49,10 +49,10 @@ vm_convert(const char* inputFileName, const char* outputFileName,
 			{
 				VMDump32* vmdump;
 				LKCDDump32* lkcddump;
-				 
+
 				vmdump = new VMDump32(inputFileName);
 				vmdump->printInfo();
-				lkcddump = new LKCDDump32(vmdump, 
+				lkcddump = new LKCDDump32(vmdump,
 						vmdump->getRegisterContent());
 				lkcddump->writeDump(outputFileName);
 				delete vmdump;

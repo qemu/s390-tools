@@ -6,6 +6,7 @@
 #
 
 # some definitions from kernel land
+__LC_IRB = 0x0300
 __LC_IPLDEV  = 0xC6C
 __LC_PANIC_MAGIC= 0xE00
 
@@ -186,23 +187,33 @@ _load_blocklist:
 _enable_device:
         stm    %r6,%r15,24(%r15)
         basr   %r13,0                   # base register
-0:      s      %r15,1f-0b(%r13)
+0:      s      %r15,4f-0b(%r13)
 	lr     %r1,%r2
-	l      %r2,4f-0b(%r13)          # set panik code early
-        stsch  2f-0b(%r13)
-        oi     2f-0b+5(%r13),0x84       # enable ssch and multipath mode
-        msch   2f-0b(%r13)
-	bnz    _panik-0b(%r13)          # subchannel busy or in error ?
-	lctl   %c6,%c6,3f-0b(%r13)      # enable all interrupt classes
+	l      %r2,7f-0b(%r13)          # set panik code early
+        stsch  5f-0b(%r13)
+	brc    1,3f		        # panic if not operational
+        oi     5f-0b+5(%r13),0x80       # enable subchannel
+	lhi    %r6,256			# r6 retry counter
+1: # modify subchannel
+        msch   5f-0b(%r13)
+	brc    6,2f        		# status pending or busy
+	brc    1,3f		        # panic if not operational
+	lctl   %c6,%c6,6f-0b(%r13)      # enable all interrupt classes
 	sr     %r2,%r2
-	ic     %r2,10+2f-0b(%r13)	# return lpum in r2
+	ic     %r2,10+5f-0b(%r13)	# return lpum in r2
         lm     %r6,%r15,120(%r15)
         br     %r14
-1:	.long  96
+2: # clear status and retry
+	tsch   __LC_IRB
+	brc    1,3f		        # panic if not operational
+	brct   %r6,1b			# retry
+3: # panic
+	b      _panik-0b(%r13)          # panic
+4:	.long  96
 	.align 8
-2:	.fill  64,1,0
-3:	.long  0xff000000               # CR6 initial value
-4:      .long  EENABLE_DEV
+5:	.fill  64,1,0
+6:	.long  0xff000000               # CR6 initial value
+7:      .long  EENABLE_DEV
 
 #
 # Disable I/O on the ipl device.
@@ -211,84 +222,151 @@ _enable_device:
 _disable_device:
         stm    %r6,%r15,24(%r15)
         basr   %r13,0                   # base register
-0:      s      %r15,1f-0b(%r13)
+0:      s      %r15,4f-0b(%r13)
 	lr     %r1,%r2
-	l      %r2,3f-0b(%r13)          # set panik code early
-	lctl   %c6,%c6,2f-0b(%r13)      # disable all interrupt classes
-        stsch  2f-0b(%r13)
-        ni     2f-0b+5(%r13),0x7B       # disable ssch and multipath mode
-        msch   2f-0b(%r13)
-	bnz    _panik-0b(%r13)          # subchannel busy or in error ?
+	l      %r2,6f-0b(%r13)          # set panik code early
+	lctl   %c6,%c6,5f-0b(%r13)      # disable all interrupt classes
+        stsch  5f-0b(%r13)
+	brc    1,3f			# panic if not operational
+        ni     5f-0b+5(%r13),0x7F       # disable subchannel
+	lhi    %r6,256			# r6 retry counter
+1: # modify subchannel
+        msch   5f-0b(%r13)
+	brc    6,2f			# status pending or busy
+	brc    1,3f			# panic if not operational
         lm     %r6,%r15,120(%r15)
         br     %r14
-1:	.long  96
+2: # clear status and retry
+	tsch   __LC_IRB
+	brc    1,3f			# panic if not operational
+	brct   %r6,1b
+3: # panic
+	b      _panik-0b(%r13)          # panic
+4:	.long  96
         .align 8
-2:	.long  0x00000000               # CR6 (all interrupts classes disabled)
-3:      .long  EDISABLE_DEV
+5:	.long  0x00000000               # CR6 (all interrupts classes disabled)
+6:      .long  EDISABLE_DEV
 	.endm	
 
 	.macro io_subroutines
-#
-# Start I/O
-#   %r2 : device subchannel id
-#   %r3 : address of orb
-#   %r4 : address of irb
-#   %r5 : retry count
-#
-_ssch:
-        stm    %r6,%r15,24(%r15)
-        basr   %r13,0                   # base register
-0:      s      %r15,6f-0b(%r13)         # create stack frame
-	lr     %r12,%r2                 # save subchannel id
-	lr     %r11,%r3                 # save orb
-	lr     %r10,%r4                 # save irb
-	lr     %r9,%r5                  # save retry count
-	ic     %r0,.Llpm-0b(%r13)	# copy lpm to orb lpm
-	stc    %r0,6(%r3)
-1:	lr     %r1,%r12
-	ssch   0(%r11)                  # go
-        bnz    4f-0b(%r13)              # houston, we have a problem
-2:	lr     %r2,%r12                 # call _wait4de with subchannel id
-	lr     %r3,%r10                 # and irb address as parameters
-	bas    %r14,_wait4de-0b(%r13)   # wait until DE or error
-	tm     9(%r10),0xff             # test channel status
-	bnz    4f-0b(%r13)
-	tm     8(%r10),0xf3             # test device status
-	bz     5f-0b(%r13)
-	bct    %r9,1b-0b(%r13)          # something went wrong, retry.
-4:	l      %r2,7f-0b(%r13)
-	bas    %r4,_panik-0b(%r13)      # won't return
-5:	lm     %r6,%r15,120(%r15)
-        br     %r14
-6:	.long  96
-7:      .long  ESSCH
-.Llpm:
-	.byte  0xff
-	.align 2
+
+
+__LC_IO_NEW_PSW		= 0x78
+__LC_SUBCHANNEL_ID	= 0xb8
 
 #
-# Wait for interrupt subroutine
-#   %r2 : device subchannel id
+# Wait for I/O interrupt.
+#
+# Wait until status for the specified subchannel is available.
+#
+#   %r2 : subchannel id
 #   %r3 : address of irb
 #
-_wait4de:
+
+_wait_for_int:
 	lr     %r1,%r2
-	basr   %r4,0
-0:      mvc    0x78(8),5f-0b(%r4)       # set i/o new psw
-1:	lpsw   4f-0b(%r4)
-2:      c      %r1,0xb8                 # compare subchannel id
-        bne    1b-0b(%r4)               # unequal -> continue waiting
-	tsch   0(%r3)
-	tm     9(%r3),0xff              # test channel status
-	bnz    3f-0b(%r4)
-	tm     8(%r3),0xf3              # got something unusual ?
-	bnz    3f-0b(%r4)
-        tm     8(%r3),0x04              # got device end ?
-        bz     1b-0b(%r4)               # still busy -> continue waiting
-3:      br     %r14
+	basr   %r4,0			# get base register
+0:
+	mvc    __LC_IO_NEW_PSW(8),4f-0b(%r4) # set i/o new psw
+1: # wait
+	lpsw   3f-0b(%r4)
+2: # continue
+	tsch   0(%r3)			# get status
+	brc    4,1b			# if cc=1 goto wait
+	br     %r14			# return
         .align 8
-4:	.long  0x020a0000,0x80000000+1b
-5:	.long  0x00080000,0x80000000+2b # io new psw
+3:
+	.long  0x020a0000,0x80000000+1b	# enabled wait psw
+4:
+	.long  0x00080000,0x80000000+2b	# io new psw
+
+#
+# Start I/O
+#
+# Attempt to start I/O defined by ORB on specified subchannel. Retry I/O
+# 256 times per path (recommended error recovery procedure for IFCCs) unless
+# a permanent path error condition is indicated. Try all paths twice to try to
+# work around "link flapping" (paths going down once each in the same order as
+# they are tried). Perform CLEAR SUBCHANNEL when switching paths to clear any
+# improper subchannel status.
+#
+#   %r2 : subchannel id
+#   %r3 : address of orb
+#   %r4 : address of irb
+#
+_ssch:
+	stm    %r6,%r15,24(%r15)
+	basr   %r13,0			# get base register
+0:
+	ahi    %r15,-96			# create stack frame
+	lr     %r6,%r2			# r6:  sid
+	lr     %r7,%r3			# r7:  orb
+	lr     %r8,%r4			# r8:  irb
+	sr     %r9,%r9			# r9:  initial lpm
+	ic     %r9,.Llpm-0b(%r13)
+	l      %r10,.Lmask-0b(%r13)	# r10: path mask
+1: # restart_all
+	lhi    %r11,256			# r11: retry counter
+2: # restart
+	stc    %r9,6(%r7)		# store initial lpm in orb
+	ltr    %r9,%r9			# if non-zero initial lpm
+	jne    3f			# then use initial lpm
+	stc    %r10,6(%r7)		# else use current path mask
+3: # gotlpm
+	lr     %r1,%r6			# get sid
+	ssch   0(%r7)			# start subchannel
+	brc    1,7f			# if cc==3 goto next_path
+	brc    7,6f                     # if cc!=0 goto retry
+4: # wait_for_int_loop
+	lr     %r2,%r6			# get sid
+	lr     %r3,%r8			# get irb
+	bras   %r14,_wait_for_int	# wait for interrupt
+	jnz    9f			# if cc!=0 goto panic
+	tm     0(%r8),0x3		# test irb deferred cc
+	brc    1,7f			# if cc==3 goto next_path
+	jz     5f			# if cc==0 goto no_stctl_check
+	tm     3(%r8),0x10		# test irb status control
+	jnz    6f			# if alert goto retry
+5: # no_stctl_check
+	tm     9(%r8),0xff		# test irb subchannel status
+	jnz    6f			# if status!=0 goto retry
+	tm     8(%r8),0xf3		# test irb unusual device status
+	jnz    6f			# if status!=0 goto retry
+	tm     8(%r8),0x4		# test irb device end
+	jz     4b			# if !device_end goto wait_for_int_loop
+	lm     %r6,%r15,120(%r15)
+	br     %r14			# return
+
+6: # retry
+	lr     %r1,%r6			# get sid
+	tsch   0(%r8)			# clear status if necessary
+	brct   %r11,2b			# if --retries>0 goto restart
+7: # next_path
+	ltr    %r9,%r9			# if initial lpm != 0
+	jnz    8f			# then goto noshift
+	srl    %r10,1			# path_mask >>= 1
+	ltr    %r10,%r10		# if path_mask==0
+	jz     9f			# then goto panic
+8: # noshift
+	sr     %r9,%r9			# clear initial lpm
+	lr     %r1,%r6			# get sid
+	csch				# clear subchannel
+	brc    7,9f			# if cc!=0 goto panic
+	lr     %r2,%r6			# get sid
+	lr     %r3,%r8			# get irb
+	bras   %r14,_wait_for_int	# wait for interrupt
+	j      1b			# goto restart_all
+9: # panic
+	l      %r2,.Lerrno-0b(%r13)	# get error code
+	bras   %r14,_panik		# panic
+
+.Lerrno:
+	.long  ESSCH
+.Lmask:
+	.long  0x8080
+.Llpm:
+	.byte  0x00
+	.align 2
 
 #
 # Panik routine. Loads a disabled wait psw

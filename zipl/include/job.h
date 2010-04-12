@@ -68,8 +68,12 @@ struct job_mvdump_data {
 
 struct job_dump_fs_data {
 	char* partition;
+	char* image;
 	char* parmline;
+	char* ramdisk;
+	address_t image_addr;
 	address_t parm_addr;
+	address_t ramdisk_addr;
 	uint64_t mem;
 };
 

@@ -230,7 +230,7 @@ int get_cmmpages_size()
 		return -1;
 	}
 	rc = fscanf(filp, "%d", &size);
-	if (rc != 0) {
+	if (rc == 0) {
 		fprintf(stderr, "Can not read /proc/sys/vm/cmm_pages: %s\n",
 				strerror(errno));
 		if (foreground == 0)

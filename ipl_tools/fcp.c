@@ -33,12 +33,11 @@
 
 /*
  * return the current reipl type from /sys/firmware/reipl/reipl_type
- * 0 = fcp, 1 = ccw, -1, error
+ * 0 = fcp, 1 = ccw, 2 = nss, -1 = unknown
  */
-int get_reipl_type(void)
+int get_reipl_type(char *reipltype)
 {
 	FILE *filp;
-	char reipltype[4];
 	char path[4096];
 	int rc;
 
@@ -49,7 +48,7 @@ int get_reipl_type(void)
 			fprintf(stderr,	"%s: Can not open /sys/firmware/"
 				"reipl/reipl_type: ", name);
 			fprintf(stderr, "%s\n", strerror(errno));
-			return -1;
+			exit(1);
 		}
 		rc = fscanf(filp, "%s", reipltype);
 		fclose(filp);
@@ -57,17 +56,19 @@ int get_reipl_type(void)
 			fprintf(stderr, "%s: Failed to read "
 				"/sys/firmware/reipl/reipl_type:", name);
 			fprintf(stderr, "%s\n", strerror(errno));
-			return -1;
+			exit(1);
 		}
 		if (strncmp(reipltype, "fcp", strlen("fcp")) == 0)
 			return T_FCP;
 		else if (strncmp(reipltype, "ccw", strlen("ccw")) == 0)
 			return T_CCW;
-		/* TODO: add NSS support */
+		else if (strncmp(reipltype, "nss", strlen("nss")) == 0)
+			return T_NSS;
 	} else {
 		fprintf(stderr, "%s: Can not open /sys/firmware/reipl/"
 			"reipl_type:", name);
 		fprintf(stderr, " %s\n", strerror(errno));
+		exit(1);
 	}
 	return -1;
 }

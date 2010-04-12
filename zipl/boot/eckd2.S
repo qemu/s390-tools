@@ -85,7 +85,6 @@ _load_direct:
         la     %r3,.Lorb-.Lbase(%r13)   # pass address of orb
         la     %r4,.Lirb-.Lbase(%r13)   # and pass address of irb
 	lr     %r2,%r11                 # pass subchannel id
-        la     %r5,5                    # 5 retries
         bas    %r14,_ssch-.Lbase(%r13)  # read records
 .Lexit:
         lr     %r2,%r12                 # return updated load address

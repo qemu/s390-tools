@@ -152,9 +152,9 @@ LKCDDump::writeDump(const char* fileName)
 	 */
 
 	dp.address = 0x0;
-	dp.size    = DUMP_DH_END;
-	dp.flags   = 0x0;
-	if(write(fd, dump_page_buf, sizeof(dp)) != sizeof(dp)){
+	dp.size    = 0x0;
+	dp.flags   = DUMP_DH_END;
+	if(write(fd, &dp, sizeof(dp)) != sizeof(dp)){
 		throw(DumpErrnoException("write failed"));
 	}
 	fprintf(stderr, "\n");

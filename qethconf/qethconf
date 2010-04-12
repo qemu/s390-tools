@@ -33,7 +33,7 @@
 # 
 #  You should have received a copy of the GNU General Public License
 #  along with this program; if not, write to the Free Software
-#  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#  Foundation, Inc., 51 Franklin St., Fifth Floor, Boston, MA 02110-1301, USA.
 ########################################################################
  
 script_name=${0##*/}                     # name of this script
@@ -69,7 +69,11 @@ function __layer2_enabled
 	elif [ ! -e $sys_ifnames/$1 ]; then
        		echo $script_name": interface does not exist"
        		__exit_on_error
-    	fi 
+    	fi
+	if [ "`cat /sys/class/net/$1/device/card_type`" = 'OSN' ]; then
+		echo $script_name": interface type OSN is not supported"
+		__exit_on_error
+	fi 
 
 	#
 	# check if layer 2 is enables
@@ -99,12 +103,13 @@ function __usage
     printf '  %s\n'   "Description:"
     printf '  %s\n\n' "Shell script for configuring OSA-Express IPA,VIPA and Proxy ARP"
     printf '  %s\n\n' "Parameter:"
-    printf '  %s\t\t%s\n' "TYPE" "<ipa/vipa/parp|rxip/list_all>"
+    printf '  %s\t\t%s\n' "TYPE" "<ipa/vipa/parp|rxip/list_all/list_msg>"
     printf '\t\t%s\n' "choose one of these keywords for feature"
     printf '\t\t%s\n' "ipa - IP address takeover"
     printf '\t\t%s\n' "vipa - Virtual IP address"
     printf '\t\t%s\n' "parp|rxip - Proxy ARP"
     printf '\t\t%s\n' "list_all - list all available entries"
+    printf '\t\t%s\n' "list_msg - list messages and explanation"
     printf '\n  %s\t\t%s\n' "CMD" "<add/del/inv4/inv6/list>"
     printf '\t\t%s\n' "where"
     printf '\t\t%s\n' "add  - add an IP address or address range"
@@ -247,6 +252,28 @@ function __list_entries
   fi
 
   exit 0
+}
+
+
+#
+# list messages and explanation
+#
+function __list_msgs
+{
+    local cmd_type=$1
+    printf '\n\t\t%s\n' "Operation not permitted."
+    printf '\t\t%s\n' "OSA layer2 mode is enabled for the device. IPA, VIPA,"
+    printf '\t\t%s\n' "and PARP are not supported with layer 2."
+    printf '\n\t\t%s\n' "Out of memory."
+    printf '\t\t%s\n' "There is not enough free memory to allocate an entry in sysfs."
+    printf '\n\t\t%s\n' "File exists."
+    printf '\t\t%s\n' "The entry to be added (e.g. IP address) does already exist"
+    printf '\n\t\t%s\n' "Invalid argument."
+    printf '\t\t%s\n' "At least one of the following specifications was not valid:"
+    printf '\t\t%s\n' "- The IP address format"
+    printf '\t\t%s\n' "- The mask bits for the IP address"
+    printf '\t\t%s\n' "- The value in the field for IP address inversion"
+    exit 0
 }
 
 
@@ -512,7 +539,19 @@ function __build_cmd
     # assemble command
     #
     echo_cmd="$echo_cmd$ip_ver $ip_hex"
+
     if [ -n "$mask_bits" ]; then
+       if [ "$ip_ver" = 4 ]; then
+	      if [ "$mask_bits" -gt 32 ]; then
+		     echo $script_name": invalid mask bits specified"
+		     __exit_on_error
+	      fi
+       else
+	      if [ "$mask_bits" -gt 128 ]; then
+		     echo $script_name": invalid mask bits specified"
+		     __exit_on_error
+	      fi
+       fi
        echo_cmd="${echo_cmd}/$mask_bits"
     fi
 }
@@ -614,6 +653,12 @@ else
                    else
 	       	   	    __list_entries "$@"
 		   fi;;
+	list_msg ) if [ "$#" -gt 1 ]; then
+                           echo $script_name": too many parameters for $2 command"
+                            __exit_on_error
+                   else
+	       	   	    __list_msgs "$@"
+		   fi;;
        * ) echo $script_name": invalid TYPE parameter specified" 
            __exit_on_error ;;
    esac
@@ -671,6 +716,11 @@ fi
 
 if [ -f $proc_file ]; then
 	echo $echo_cmd > $proc_file
+	if [ "$?" -ne 0 ]; then
+		echo $script_name": The qethconf command failed."
+		echo "Enter 'qethconf list_msg' for details."
+		exit 1
+	fi
 else
 	echo $script_name": device does not exist or is not capable of $1."
         __exit_on_error 

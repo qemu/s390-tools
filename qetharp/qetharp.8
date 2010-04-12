@@ -1,4 +1,4 @@
-.TH QETHARP 8 "Apr 2006" "s390-tools"
+.TH QETHARP 8 "Oct 2009" "s390-tools"
 .SH NAME
 qetharp \- querying and purging address data in the OSA and HiperSockets hardware.
 
@@ -7,13 +7,23 @@ qetharp \- querying and purging address data in the OSA and HiperSockets hardwar
 .B qetharp
 .RB [ -hv]
 .br
-.RB [ -[n]q
-.IR interface 
-.RB | -p
-.IR interface ] 
-
+.RB [ -[c|n]q
+.IR interface ]
 .br
-
+.RB [ -p
+.IR interface ] 
+.br
+.RB [ -a
+.IR interface
+.RB -i
+.IR IP_address
+.RB -m
+.IR MAC_address ]
+.br
+.RB [ -d
+.IR interface
+.RB -i
+.IR IP_address ]
 
 .SH DESCRIPTION
 \fBqetharp\fR is a tool to get information like MAC and IP Addresses from
@@ -48,10 +58,10 @@ deletes a static ARP entry from the OSA card. This command needs an
 IP address (\fB-i\fR switch).
 .TP
 
-\fB-i\fR or \fB--ip \fIIP address\fR
+\fB-i\fR or \fB--ip \fIIP_address\fR
 specifies an IP address to be added to or removed from the OSA ARP cache.
 .TP
-\fB-m\fR or \fB--mac \fIMAC address\fR
+\fB-m\fR or \fB--mac \fIMAC_address\fR
 specifies a MAC address to be added to the OSA ARP cache.
 .TP
 

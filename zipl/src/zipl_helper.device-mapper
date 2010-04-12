@@ -137,7 +137,7 @@ if ($phy_partstart > 0) {
 
 # Check for valid offset of file system
 if (($phy_offset % ($phy_blocksize / $SECTOR_SIZE)) != 0) {
-	die("Error: file system not aligned on physical block size\n");
+	die("Error: File system not aligned on physical block size\n");
 }
 
 # Print resulting information
@@ -170,13 +170,13 @@ sub get_physical_device($)
 	($major, $minor) = get_major_minor($directory);
 	$table = get_table($major, $minor);
 	if (scalar(@$table) == 0) {
-		die("Error: could not retrieve device-mapper information for ".
+		die("Error: Could not retrieve device-mapper information for ".
 		    "device '".get_device_name($major, $minor)."'\n");
 	}
 	# Filesystem must be on a single dm target
 	if (scalar(@$table) != 1) {
-		die("Error: directory '$directory' is located on a multi-".
-		    "target device-mapper device\n");
+		die("Error: Unsupported setup: Directory '$directory' is ".
+		    "located on a multi-target device-mapper device\n");
 	}
 
 	$target = $table->[0];
@@ -195,8 +195,9 @@ sub get_physical_device($)
 		# Get target in parent table which contains filesystem
 		$table = filter_table($table, $start, $length);
 		if (scalar(@$table) != 1) {
-			die("Error: could not map directory '$directory' to ".
-			    "a single physical device\n");
+			die("Error: Unsupported setup: Could not map ".
+			    "directory '$directory' to a single physical ".
+			    "device\n");
 		}
 		$target = $table->[0];
 		push(@target_list, [$major, $minor, $target]);
@@ -218,7 +219,7 @@ sub get_major_minor($)
 
 	@stat = stat($filename);
 	if (!@stat) {
-		die("Error: could not stat '$filename'\n");
+		die("Error: Could not stat '$filename'\n");
 	}
 	$dev = $stat[0];
 	$major = ($dev & 0xfff00) >> 8;
@@ -242,7 +243,7 @@ sub get_table($$)
 		return undef;
 	while (<HANDLE>) {
 		if (!(/^(\d+)\s+(\d+)\s+(\S+)\s+(\S.*)$/)) {
-			die("Error: unrecognized device-mapper table format ".
+			die("Error: Unrecognized device-mapper table format ".
 			    "for device '$dev_name'\n");
 		}
 		my ($start, $length, $target_type, $args) = ($1, $2, $3, $4);
@@ -259,8 +260,9 @@ sub get_table($$)
 			$type = $TARGET_TYPE_MULTIPATH;
 			$data = get_multipath_data($dev_name, $args);
 		} else {
-			die("Error: unsupported device-mapper target type ".
-			    "'$target_type' for device '$dev_name'\n");
+			die("Error: Unsupported setup: Unsupported ".
+			    "device-mapper target type '$target_type' for ".
+			    "device '$dev_name'\n");
 		}
 		push(@table, [$start, $length, $type, $data]);
 	}
@@ -275,7 +277,7 @@ sub get_linear_data($$)
 	my ($dev_name, $args) = @_;
 
 	if (!($args =~ /^(\d+):(\d+)\s+(\d+)$/)) {
-		die("Error: unrecognized device-mapper table format for ".
+		die("Error: Unrecognized device-mapper table format for ".
 		    "device '$dev_name'\n");
 	}
 	return [$1, $2, $3];
@@ -303,8 +305,9 @@ sub get_mirror_data($$)
 		if (!defined($offset)) {
 			$offset = $argv[1];
 		} elsif ($argv[1] != $offset) {
-			die("Error: mirror target on device '$dev_name' ".
-			    "contains entries with varying sector offsets\n");
+			die("Error: Unsupported setup: Mirror target on ".
+			    "device '$dev_name' contains entries with varying ".
+			    "sector offsets\n");
 		}
 		splice(@argv, 0, 2);
 	}
@@ -314,7 +317,7 @@ sub get_mirror_data($$)
 	return \@data;
 
 out_error:
-	die("Error: unrecognized device-mapper table format for device ".
+	die("Error: Unrecognized device-mapper table format for device ".
 	    "'$dev_name'\n");
 }
 
@@ -366,7 +369,7 @@ sub get_multipath_data($$)
 	return \@data;
 
 out_error:
-	die("Error: unrecognized device-mapper table format for device ".
+	die("Error: Unrecognized device-mapper table format for device ".
 	    "'$dev_name'\n");
 }
 
@@ -455,7 +458,7 @@ sub create_temp_device_node($$$)
 		}
 		return $name;
 	}
-	die("Error: could not create temporary device node in '$path'\n");
+	die("Error: Could not create temporary device node in '$path'\n");
 }
 
 # get_blocksize(device)
@@ -587,7 +590,7 @@ sub get_device_characteristics($$)
 	$blocksize = get_blocksize($dev);
 	if (!defined($blocksize)) {
 		unlink($dev);
-		die("Error: could not get block size for ".
+		die("Error: Could not get block size for ".
 		    get_device_name($major, $minor)."\n");
 	}
 	($type, $cyl, $heads, $sectors) = get_dasd_info($dev);
@@ -612,7 +615,7 @@ sub get_device_characteristics($$)
 	$partstart = get_partition_start($dev);
 	unlink($dev);
 	if (!defined($partstart)) {
-		die("Error: could not determine partition start for ".
+		die("Error: Could not determine partition start for ".
 		    get_device_name($major, $minor)."\n");
 	}
 	return ($type, $blocksize, $geometry, $bootsectors, $partstart);
@@ -649,8 +652,9 @@ sub check_for_mirror($@)
 
 		if ($target->[$TARGET_TYPE] == $TARGET_TYPE_MIRROR) {
 			# IPL records are not mirrored.
-			die("Error: could not find mirror for block 0 in ".
-			    "device '".get_device_name($major, $minor)."'\n");
+			die("Error: Unsupported setup: Block 0 is not ".
+			    "mirrored in device '".
+			    get_device_name($major, $minor)."'\n");
 		}
 	}
 }

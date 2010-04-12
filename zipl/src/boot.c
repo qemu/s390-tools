@@ -17,7 +17,6 @@
 
 #include "error.h"
 #include "misc.h"
-#include "zt_common.h"
 
 /* Include declarations for boot_data symbols. */
 #include "../boot/data.h"

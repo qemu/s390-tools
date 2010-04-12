@@ -49,9 +49,11 @@ PROCFILES=" \
     /proc/diskstats \
     /proc/dasd/devices \
     /proc/dasd/statistics \
+    /proc/sys/kernel/spin_retry \
     /proc/sys/vm/cmm_pages \
     /proc/sys/vm/cmm_timed_pages \
     /proc/sys/vm/cmm_timeout \
+    /proc/sys/vm/swappiness \ 
     "
 PROCFILES_24=" \
     /proc/subchannels \
@@ -114,6 +116,7 @@ CMDS="uname -a\
     :ip rule list\
     :ip neigh list\
     :ip link show\
+    :ipcs -a\
     :netstat -pantu\
     :netstat -s\
     :dmsetup ls\
@@ -158,6 +161,7 @@ VM_CMDS="q userid\
 	:q v st\
 	:q st\
 	:q xstore\
+	:q xstore user system\
 	:q sxspages\
 	:q v sw\
 	:q vmlan\
@@ -190,6 +194,7 @@ VM_CMDS="q userid\
 	:q alloc page\
 	:q alloc spool\
 	:q dump\
+	:q reorder \*\
 	:ind load\
 	:ind sp\
 	:ind user\

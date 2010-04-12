@@ -233,7 +233,7 @@ show_devices()
 	# Differentiate old and new sysfs layout
 	if $FC_CLASS; then
 		SCSI_DEVICE_LIST=`ls -d \
-			$SYSFS/devices/css0/*/*/host*/rport*/target*/*/ \
+			$SYSFS/bus/ccw/drivers/zfcp/*/host*/rport*/target*/*/ \
 		       	2>/dev/null |grep -P '\d+:\d+:\d+:\d+'`
 	else
 		SCSI_DEVICE_LIST=`ls -d $SYSFS/devices/css0/*/*/host*/*/`
