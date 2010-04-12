@@ -1,0 +1,65 @@
+.TH cpuplugd 8 "Oct 2007" "s390-tools"
+
+.SH NAME
+cpuplugd \- Linux for System z CPU and Memory Hotplug Daemon
+
+.SH SYNOPSIS
+\fBcpuplugd\fR [-c \f <configuration file>\fR] [-f] [-h] [-v] [-V] 
+
+.SH DESCRIPTION
+\fBcpuplugd\fR is a daemon that dynamically enables and disables
+cpus or increases the memory based on a set of rules.
+
+.SH OPTIONS
+
+.TP
+\fB-c\fR or \fB--config\fR  [-c \f <configuration file>\fR]
+Specify the absolute path to the configuration file
+
+.TP
+\fB-f\fR or \fB--foreground\fR
+Do run in the foreground and not as daemon. If this option is
+omitted the program starts to run in the background.
+
+.TP
+\fB-h\fR or \fB--help\fR
+Print usage message and exit.
+
+.TP
+\fB-v\fR or \fB--version\fR
+Print Version information and exit.
+
+.TP
+\fB-V\fR or \fB--verbose\fR
+Verbosely print messages to stdout (when running in foreground) 
+or to syslog otherwise.
+This options is mainly used for debugging purposes.
+
+.SH EXAMPLES
+.nf
+In order to test the first setup it is useful to start cpuplugd
+in foreground mode using verbose output
+    cpuplugd -V -f -c /etc/sysconfig/cpuplugd
+
+For daemon mode cpuplugd should be started from an init script as follows
+    cpuplugd -c /etc/sysconfig/cpuplugd
+
+.SH STANDARDS
+
+If the daemon is stopped, the size of the memory as well as the number of
+active CPUs is changed to the values found within the system prior to daemon
+startup.
+
+.SH ENVIRONMENT
+
+This program is useful  when executed within a z/VM or LPAR Linux environment.
+The CMM feature (memory hotplug) can not be used inside an LPAR environment.
+
+.SH SEE ALSO
+.nf
+cpuplugd.conf(5)
+
+.SH AUTHOR
+.nf
+This man-page was written by Hans-Joachim Picht <hans@linux.vnet.ibm.com>.
+.fi

@@ -1,0 +1,161 @@
+.TH cpuplugd.conf 5 "Oct 2007" "s390-tools"
+
+.SH NAME
+cpuplugd.conf \- Configuration file for the Linux for System z CPU and Memory Hotplug Daemon
+
+.SH DESCRIPTION
+The cpuplugd.conf configuration file contains the configuration information for
+the Linux for System z CPU Hotplug Daemon.
+
+Using the cpuplugd.conf configuration file, one can specify several different
+rules used to enable or disable cpus or to change the amount of memory.
+
+\fB CPU hotplug\fR
+
+CPUS can be enabled and disabled via an interface within the /sys filesystem.
+The status file for a certain CPU, here CPU16 (counting starts at 0), is 
+/sys/devices/system/cpu/cpu15/online
+
+Writing a 0 into this file causes the CPU to be disabled whereas the input of
+1 enables this CPU.
+
+\fB Memory hotplug\fR
+
+The memory hotplug (memplug) and memory hotunplug (memunplug) rules exploit  the
+cooperative memory management (CMM) feature. 
+
+This is a mechanism to reduce the available memory of a Linux guest.
+CMM allocates pages to a dynamic page pool not available to Linux.
+A diagnose code indicates to z/VM that the pages in the page pool are out of
+use. z/VM can then immediately reuse these pages for other guests.
+
+\fB Layout of the configuration file\fR
+
+To  be  able to specify rules within a certain range of limits, the
+configuration file is divided into two sections. Whereas the first section 
+contains static variables for min and max values, rule definitions can be found 
+in the second section.
+
+The \fBfirst section\fR contains static variables of the format \fBkey=value\fR 
+where "key" may  be any of the following options:
+
+	*\fBcpu_min\fR the minimum amount of cpus to keep online
+
+	*\fBcpu_max\fR the maximum number of cpus to enable
+
+	*\fBupdate\fR update interval (in seconds)
+
+	*\fBcmm_min\fR the minimum size of the static page pool
+
+	*\fBcmm_max\fR the maximum size of the static page pool
+
+	*\fBcmm_inc\fR the amount of pages the static page pool is increased if a rule is matched.
+
+If the value of cpu_max is 0, the overall number of cpus found in this system
+is used as the maximum.
+
+In this section \fBvalue\fR only refers to positive numbers. 
+
+Within the \fBsecond section\fR rule definitions are found. Four kinds of rules are
+distinguished:
+
+	*\fBhotplug\fR rules, used to enable cpus
+
+	*\fBhotunplug\fR rules, to disable cpus
+
+	*\fBmemplug\fR rules, used to increase the available memory
+
+	*\fBmemunplug\fR rules, to decrease the amount of memory
+
+Within the \fBhotplug\fR and \fBhotunplug\fR rule definitions the following 
+variables can be used:
+
+	*\fBloadavg:\fR the current load average
+
+	*\fBidle:\fR the current idle percentage
+
+	*\fBonumcpus:\fR  the actual  number of cpus which are online
+
+	*\fBrunable_proc:\fR the current amount of runnable processes
+
+
+\fBmemplug\fR and \fBmemunplug\fR rules can contain the set of keywords listed
+blow: 
+
+	*\fBapcr:\fR The amount of page cache reads (as listed in vmstat in the bi and bo fields)
+
+	*\fBfreemem:\fR The amount of free memory (in Megabyte)
+
+	*\fBswaprate:\fR  The number of swapin and swapout operations  (as listed in vmstat in the si and so field)
+
+
+To generate terms which can be evaluated, the above described variables as well as 
+numbers can be connected using the following symbols:
+    \fB+ * ( ) / - < >\fR
+
+Furthermore boolean operators like \fB & \fR (and) \fB|\fR (or) and \fB!\fR (not)
+can be used.
+
+If you specify multiple rules of a kind (e.g. hotplug and hotunplug), only the last ruleset will be
+evaluated.
+
+.SH EXAMPLES
+
+An exemplary configuration file looks like this:
+
+.nf
+	update="60"
+	cpu_min="2" 
+	cpu_max="5"
+	cmm_min="32"
+	cmm_max="4096"
+	cmm_inc="128"
+
+	hotplug = "(loadavg > onumcpus + 0.75) & (idle < 10.0)"
+	hotunplug = "(loadavg < onumcpus - 0.25) | (idle > 50)"
+
+	memplug = "(swaprate > freemem+10) & (freemem+10 < apcr)"
+	memunplug = "(swaprate > (freemem +10000))"
+.fi
+
+Every 60 seconds the daemon checks if a given rule matched against the
+current system state.
+
+In the second and the third line the minimum and maximum amount of cpus is
+specified. This setup ensures that at least two cpus are online at any given 
+time and never more than 5 cpus get activated.
+
+The three variables below are related to the memory hotplug feature.
+The minimum (cmm_min) and maximum (cmm_max) size of the static page pool of cmm is defined.
+
+The cmm_inc variable specifies the amount of pages the static page pool is
+increased (decreased) if a memplug (memunplug) rule is matched.
+
+In this configuration the cpu hotplug daemon tries to enable a cpu if the
+current load average (loadavg) is greater than the number of online cpus 
+(onumcpus) plus 0.75 and the current idle percentage (idle) is below 10 percent.
+
+The hotunplug term disables a cpu if one of the following conditions is
+matched: The load is below the number of active cpus minus 0.25 or the idle 
+percentage is above 50 percent.
+
+Furthermore the variable runable_proc, which represents the current
+number of running processes can be used.
+
+The memplug rule below is matched when the current swaprate (as shown in the
+output of the vmstat  command) is greater than the current amount of free memory (in
+megabyte) plus 10. Furthermore the sum of the free memory (in megabyte) plus 10 
+has to be less than the current amount of page cache reads (apcr).
+
+Please keep in mind that the defined memplug and memunplug rules in the 
+example above are only used to illustrate the syntax of the rules. They are
+not suitable for any production system and make semantically no sense.
+
+.SH SEE ALSO
+.nf
+cpuplugd(8)
+
+.SH AUTHOR
+.nf
+This man-page was written by Hans-Joachim Picht <hans@linux.vnet.ibm.com>.
+.fi

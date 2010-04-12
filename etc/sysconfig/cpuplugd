@@ -1,0 +1,105 @@
+#
+# Exemplary configuration file for the cpuhotplug daemon for
+# Linux on System z
+#
+# The file is evaluated by cpuplugd at startup when called with -c.
+# It does not contain shell environment variables.
+
+## Type:	integer
+## Default:	2
+#
+# The minimum number of cpus. 
+# This means in this example, that every time at least two cpus 
+# will be available
+#
+CPU_MIN="2"
+
+## Type:	integer
+## Default:	2
+#
+# The maximum number of cpus to be enabled. If 0 is specified here,
+# the maximum number of cpus equals to the number of cpus detected.
+#
+CPU_MAX="0"
+
+
+## Type:	integer
+## Default:	10
+#
+# The update interval described how often the current
+# system state is changed against the configured set 
+# of hotplug and hotunplug rules. The update intervall
+# is defined in seconds.
+#
+UPDATE="10"
+
+
+## Type:	integer
+## Default:	0
+#
+# The minimum size of the static page pool
+#
+CMM_MIN="0"
+
+## Type:	integer
+## Default:	8192
+#
+# The maximum size of the static page pool (in pages)
+#
+CMM_MAX="8192"
+
+## Type:	integer
+## Default:	256
+#
+# The amount of pages the static page pool 
+# is increased if a memplug rule is matched.
+CMM_INC="256"
+
+
+#
+# Ruledefinitions
+#
+# Four kinds of rules are distinguished
+#   (1) hotplug rules, used to enable cpus
+#   (2) hotunplug rules, to disable cpus
+#   (3) memplug rules, used to increase memory
+#   (4) memunplug rules, used to decreade memory
+#
+# Within the hotplug/hotunplug rule definitions the following variables 
+# can be used:
+#   - loadavg:		the current loadaverage
+#   - onumcpus:		the actual  number of cpus which are online
+#   - runable_proc:	the current amount of runable processes
+#   - idle:		the current idle percentage
+#
+
+## Type:	string
+## Default:	"(loadavg > onumcpus + 0.75) & (idle < 10.0)"
+#
+HOTPLUG="(loadavg > onumcpus + 0.75) & (idle < 10.0)"
+
+## Type:	string
+## Default:	"(loadavg < onumcpus - 0.25) | (idle > 50)"
+#
+HOTUNPLUG="(loadavg < onumcpus - 0.25) | (idle > 50)"
+
+#
+# Memplug and memunplug can contain the following keywords:
+#  - apcr:		the amount of page cache reads
+#  - freemem:		the amount of free memory (in megabyte)
+#  - swaprate:		the number of swapin and swapout operations
+#
+# Per default this function is disabled, because this rule has to be 
+# adjusted by the admin for each production system, depending on the
+# environment
+#
+## Type:	string
+## Default:	"0"
+#
+MEMPLUG="0"
+
+## Type:	string
+## Default:	"0"
+#
+MEMUNPLUG="0"
+

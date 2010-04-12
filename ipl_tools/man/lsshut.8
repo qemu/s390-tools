@@ -1,0 +1,31 @@
+.TH lsshut 8 "May 2008" "s390-tools"
+
+.SH NAME
+lsshut \- Print the shutdown action configuration for Linux on System z
+
+.SH SYNOPSIS
+\fBlsshut\fR [OPTIONS]
+
+.SH DESCRIPTION
+The \fBlsshut\fR command lists the Linux on System z shutdown action configuration.
+This configuration handles what the system should do in the following system
+states: halt, panic, power off and reboot.
+
+.SH OPTIONS
+.TP
+\fB-h\fR or \fB--help\fR
+Print usage message and exit.
+
+.TP
+\fB-v\fR or \fB--version\fR
+Print Version information and exit.
+
+.SH ENVIRONMENT
+
+This program is useful when executed within a z/VM or LPAR Linux environment and can detect ccw as well as fcp based setups.
+
+.SH AUTHOR
+This man-page was written by Hans-Joachim Picht <hans@linux.vnet.ibm.com>.
+
+.SH SEE ALSO
+.BR chshut (8)

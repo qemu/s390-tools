@@ -1,0 +1,639 @@
+#!/usr/bin/perl
+#==============================================================================
+# Copyright IBM Corp. 2005, 2009.
+#
+# zfcpdbf
+#
+# Script to analyse trace data of ZFCP module logged in DBF.
+#
+# Author(s): Maxim Shchetynin <maxim@de.ibm.com>
+#  	     Teresa Gamez Zerban <gamezt@de.ibm.com>
+#
+# This file is part of s390-tools
+#
+# s390-tools is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.   
+#
+# s390-tools is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with s390-tools; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#==============================================================================
+
+use strict;
+use warnings;
+use Getopt::Long;
+use File::Basename;
+
+my(%fsf_command) = (
+	'0x00000001' =>	'send FCP command',
+	'0x00000002' =>	'abort FCP command',
+	'0x00000005' =>	'open port',
+	'0x00000006' =>	'open unit',
+	'0x00000007' =>	'close unit',
+	'0x00000008' =>	'close port',
+	'0x00000009' =>	'close port physical',
+	'0x0000000b' =>	'send ELS',
+	'0x0000000c' =>	'send generic',
+	'0x0000000d' =>	'exchange config data',
+	'0x0000000e' =>	'exchange port data',
+	'0x00000012' =>	'download control file',
+	'0x00000013' =>	'upload control file'
+);
+
+my(%protocol_status) = (
+	'0x00000001' =>	'good',
+	'0x00000010' =>	'QTCB version error',
+	'0x00000020' =>	'sequence number error',
+	'0x00000040' =>	'unsupported QTCB type',
+	'0x00000080' => 'host connection initializing',
+	'0x00000100' =>	'FSF status presented',
+	'0x00000200' =>	'duplicate request ID',
+	'0x00000400' =>	'link down',
+	'0x00000800' =>	'reestablished queue',
+	'0x01000000' =>	'error state'
+);
+
+my(%fsf_status) = (
+	'0x00000000' =>	'good',
+	'0x00000001' =>	'port already open',
+	'0x00000002' => 'unit already open',
+	'0x00000003' => 'port handle not valid',
+	'0x00000004' => 'unit handle not valid',
+	'0x00000005' =>	'handle mismatch',
+	'0x00000006' => 'service class not supported',
+	'0x00000009' => 'FCP LUN not valid',
+	'0x00000010' => 'access denied',
+	'0x00000011' => 'access type not valid',
+	'0x00000012' =>	'LUN sharing violation',
+	'0x00000022' =>	'command does not exist',
+	'0x00000030' => 'direction indicator not valid',
+	'0x00000033' => 'command length not valid',
+	'0x00000040' =>	'max number of ports exceeded',
+	'0x00000041' => 'max number of units exceeded',
+	'0x00000050' => 'ELS rejected',
+	'0x00000051' =>	'generic command rejected',
+	'0x00000052' => 'partially successful',
+	'0x00000053' => 'authorization failure',
+	'0x00000054' =>	'ACT error detected',
+	'0x00000055' => 'control file update error',
+	'0x00000056' => 'control file too large',
+	'0x00000057' => 'access conflict detected',
+	'0x00000058' => 'conflicts overruled',
+	'0x00000059' => 'port boxed',
+	'0x0000005a' => 'unit boxed',
+	'0x0000005b' => 'exchange config/port data incomplete',
+	'0x00000060' =>	'payload size mismatch',
+	'0x00000061' =>	'request too large',
+	'0x00000062' => 'response too large',
+	'0x00000063' => 'SBAL mismatch',
+	'0x00000064' => 'open port without PRLI',
+	'0x000000ad' => 'adapter status available',
+	'0x000000af' => 'FCP RSP available',
+	'0x000000e2' => 'unknown command',
+	'0x000000e3' => 'unknown op subtype',
+	'0x000000e5' =>	'invalid command option'
+);
+
+my(%unsolicited_status) = (
+	'0x00000001' =>	'port closed',
+	'0x00000002' =>	'incoming ELS',
+	'0x00000003' => 'sense data available',
+	'0x00000004' =>	'bit error threshold',
+	'0x00000005' =>	'link down',
+	'0x00000006' =>	'link up',
+	'0x00000009' =>	'notification lost',
+	'0x0000000a' =>	'ACT updated',
+	'0x0000000b' =>	'ACT hardened'
+);
+
+#COMMAND LINE OPTIONS
+
+my $OPT_HBA	= 0;
+my $OPT_SAN	= 0;
+my $OPT_SCSI	= 0;
+my $OPT_REC	= 0;
+my $OPT_DEVICE	= "";
+my $OPT_PATH	= "";
+my $OPT_VERBOSE	= 0;
+my $OPT_HELP	= 0;
+my $OPT_VERSION	= 0;
+my $OPT_DATE 	= "on";
+my $OPT_SINGLELINE =0;
+
+#string for the singleline option
+my $endl	="\n\t";
+
+#PARSE COMMAND LINE OPTIONS
+Getopt::Long::Configure('bundling');
+
+GetOptions(
+	'd|device=s'	=> \$OPT_DEVICE,
+	'p|path=s'	=> \$OPT_PATH,
+	'V|verbose'	=> \$OPT_VERBOSE,
+	'h|help'	=> \$OPT_HELP,
+	'v|version'	=> \$OPT_VERSION,
+	'D|date=s'	=> \$OPT_DATE,
+	's|singleline'	=> \$OPT_SINGLELINE
+) or print_usage();
+
+foreach(@ARGV) { 
+	if($_ eq 'hba') {
+		$OPT_HBA = 1;
+	}
+	elsif( $_ eq 'scsi') {
+		$OPT_SCSI = 1;
+	}
+	elsif($_ eq 'rec') {
+		$OPT_REC = 1;
+	}
+	elsif($_ eq 'san') {
+		$OPT_SAN = 1;
+	}
+};
+
+#MAIN PROGRAM
+
+if($OPT_HELP) {
+	print_usage();
+}
+ 
+if($OPT_VERSION) {
+	print_version();
+}
+
+if($OPT_SINGLELINE) {
+	$endl = "; ";
+}
+
+if($OPT_DATE ne "" && $OPT_DATE ne "on" and  $OPT_DATE ne "off") {
+	print "Date has to be set 'on'(default) or 'off'" . 
+		" and not '$OPT_DATE'.\n";
+	exit;
+}
+	 
+if($OPT_DEVICE eq "") {
+	$OPT_DEVICE = "*";
+}
+#Check if the adapter is set correct
+else {
+	while(length($OPT_DEVICE) < 4) {
+		$OPT_DEVICE = '0' . $OPT_DEVICE;
+	}
+
+	if(length($OPT_DEVICE) == 4) {
+		$OPT_DEVICE = "0.0." . $OPT_DEVICE;
+	}
+
+	if(length($OPT_DEVICE) != 8 or $OPT_DEVICE !~ /^0\.0\./) {
+		printf "'$OPT_DEVICE' does not look like a FCP adapter.\n";
+		exit;
+	}
+}
+
+if($OPT_PATH eq "") {
+	$OPT_PATH = '/sys/kernel/debug/s390dbf';
+}
+
+#Check if path exist
+if(! -d $OPT_PATH) {
+	printf $OPT_PATH . " does not exist. Is debugfs mounted?\n";
+	exit;
+} 
+
+my @paths  = glob($OPT_PATH . "/zfcp_" . $OPT_DEVICE . "_*"); 
+unless(@paths) {
+	if($OPT_DEVICE ne "*") {
+		printf "No DBF files found for FCP adapter %s.\n",
+			$OPT_DEVICE;
+	} 
+	else {
+		printf "No DBF files found at %s.\n",$OPT_PATH;
+	}
+	exit;
+}	 
+
+if($OPT_HBA) {
+	my @hba_paths = @{filter_paths("hba",@paths)};
+	trace_hba(@hba_paths);
+}
+elsif($OPT_SCSI) {
+	my @scsi_paths = @{filter_paths("scsi",@paths)};
+	trace_scsi(@scsi_paths);
+}
+elsif($OPT_REC) {
+	my @rec_paths = @{filter_paths("rec",@paths)};
+	trace_rec(@rec_paths);
+}
+else {
+	my @san_paths = @{filter_paths("san",@paths)};
+	trace_san(@san_paths);
+}
+
+#END MAIN PROGRAMM
+
+
+#SUBS
+
+#
+# Filters the scsi trace for the specified ports
+#
+# \param	Path to the traces
+#
+sub trace_scsi {
+	my(@scsi_paths) = @_;
+	
+	foreach my $scsi_path (@scsi_paths) {
+		open(DBF,$scsi_path . "/structured") or 
+		die("Cannot open DBF file " . $scsi_path . "/structured");
+		$scsi_path =~/(0\.0\.\w+)_\w+/;
+		my $adapter = $1;
+		my %scsi_hash;
+		while(<DBF>) {
+			if($_=~ /timestamp\s+([:\d]+)/) {
+				print_scsi($adapter,%scsi_hash);
+				%scsi_hash = ();
+				$scsi_hash{'timestamp'} = convert_time($1);
+			}
+			elsif ($_ =~ /(\w+)\s+(\w+)/) {
+				$scsi_hash{$1} = $2;;
+			}
+		}
+		print_scsi($adapter,%scsi_hash);
+		close(DBF);
+	}
+}
+
+#
+# Print the scsi trace 
+#
+# \param	Adapter which is traced
+# \param	Data of the scsi trace
+#
+sub print_scsi {
+	my($adapter,%scsi_hash) = @_;
+	if(defined($scsi_hash{'timestamp'}) && defined($scsi_hash{'tag'}) && 
+		($scsi_hash{'tag'} eq 'rslt' || $scsi_hash{'tag'} eq 'abrt' ||
+		 $scsi_hash{'tag'} eq 'lrst' || $scsi_hash{'tag'} eq 'trst')) {
+		print "$adapter $scsi_hash{'timestamp'} " . 
+			"SCSI serial=$scsi_hash{'scsi_serial'}" . $endl .
+			"id=$scsi_hash{'scsi_id'} lun=$scsi_hash{'scsi_lun'} " .
+			"command=$scsi_hash{'scsi_cmnd'}" . $endl;
+		if($OPT_VERBOSE && $scsi_hash{'scsi_retries'}  ne hex 0) {
+			print "retry $scsi_hash{'scsi_retries'} ".
+				"from $scsi_hash{'scsi_allowed'}"; 
+		}
+	
+		if($scsi_hash{'fcp_rsp_validity'} ne '0x00') {
+			print "FCP_RSP validity=" .
+			      "$scsi_hash{'fcp_rsp_validity'} ";
+			if($OPT_VERBOSE) {
+				print "scsi_status=" .
+				      "$scsi_hash{'fcp_rsp_scsi_status'} " . 
+				      $endl . "residual=" .
+				      "$scsi_hash{'fcp_rsp_resid'} " .
+				      "code=0x$scsi_hash{'fcp_rsp_code'} ";
+			} 
+		}
+	
+		if($OPT_VERBOSE && $scsi_hash{'fcp_sns_info_len'} ne hex 0) {
+			print "FCP_SNS info=$scsi_hash{'fcp_sns_info'}";
+		}
+		print "\n";
+	}	 
+}
+
+#
+# Filters the hba trace for the specified ports
+#
+# \param	Path to the traces
+#
+sub trace_hba {
+	my(@hba_paths) = @_;
+
+	foreach my $hba_path (@hba_paths) {
+		open(DBF,$hba_path . "/structured") or 
+		die("Cannot open DBF file " . $hba_path . "/structured");
+		$hba_path =~/(0\.0\.\w+)_\w+/;
+		my $adapter = $1;
+		my %hba_hash;
+		while(<DBF>) {
+			if($_ =~ /timestamp\s+([:\d]+)/) {
+				print_hba($adapter, %hba_hash);
+				%hba_hash = ();
+				$hba_hash{'timestamp'} = convert_time($1);
+			}
+			elsif ($_ =~ /^(\w+)\s+(\w+)$/) {
+				$hba_hash{$1} = $2;
+			}
+			elsif ($_ =~ /^(\w+)\s+(\w+\s\w+\s\w+\s\w+)$/) {
+				$hba_hash{$1} = $2;
+			}
+			elsif ($_ =~ /^(\w+)\s+(\w+\s\w+)$/) {
+				$hba_hash{$1} = $2;
+			}
+		}
+		print_hba($adapter,%hba_hash);
+		close DBF;
+	}
+}
+
+#
+# Print the hba trace 
+#
+# \param	Adapter which is traced
+# \param	Data of the hba trace
+#
+sub print_hba {
+	my($adapter,%hba_hash) = @_;	
+	if(defined($hba_hash{'timestamp'})) { 
+		#Unsolicited status
+		if(defined($hba_hash{'tag'}) && $hba_hash{'tag'} eq "stat") {
+			if(defined($hba_hash{'tag2'}) && 
+			$hba_hash{'tag2'} eq "read") { 
+			    	if(defined($hba_hash{'timestamp'}) && 
+				 defined($hba_hash{'status_type'}) && 
+				 defined($hba_hash{'status_subtype'}) && 
+				 defined($hba_hash{'queue_designator'})) {
+					print "$adapter $hba_hash{
+					'timestamp'} " .
+					"unsolicited status" .
+					" '$unsolicited_status{
+						$hba_hash{'status_type'}}'"
+					. $endl .
+					"subtype= $hba_hash{'status_subtype'}"
+					. $endl .
+					"queue designator= $hba_hash{
+					'queue_designator'}" . $endl ;
+			  	  }
+			}
+			elsif(defined($hba_hash{'tag2'}) && 
+				$hba_hash{'tag2'} eq "dism") {
+				print "status read request dissmissed";
+			}
+			elsif(defined($hba_hash{'tag2'}) && 
+				$hba_hash{'tag2'} eq "fail") {
+				print "status read request failed";
+			}
+		}		
+		elsif(defined($hba_hash{'tag'}) && $hba_hash{'tag'} eq "resp") {
+			if(defined($hba_hash{'tag2'}) && 
+			($hba_hash{'tag2'} eq "perr" || 
+			 $hba_hash{'tag2'} eq "ferr" || 
+			 $hba_hash{'tag2'} eq "open" || 
+			 $hba_hash{'tag2'} eq "qtcb")) {
+				print "$adapter $hba_hash{'timestamp'} " .
+				"response to '$fsf_command{
+					$hba_hash{'fsf_command'}}'" . $endl;
+				print "protocol status='$protocol_status{
+					$hba_hash{'fsf_prot_status'}}'" . 
+					"FSF status='$fsf_status{
+					$hba_hash{'fsf_status'}}'" . $endl ; 
+			}  
+		}	
+		else {
+			next;
+		}
+		
+		if($OPT_VERBOSE) {
+			print "protocol status qualifier=" .
+				"'$hba_hash{'fsf_prot_status_qual'}'" . $endl .
+				"FSF status qualifier=" .
+				"'$hba_hash{'fsf_status_qual'}'" . $endl .
+				"FSF request status " .
+				"'$hba_hash{'fsf_req_status'}'" . $endl .
+				"SBAL=$hba_hash{'sbal_first'}/$hba_hash{
+				'sbal_last'}/$hba_hash{'sbal_response'} " .
+				"(fist/last/response)" . $endl; 
+		}
+
+		if($hba_hash{'fsf_command'} eq '0x00000002') {
+			print "Abort FSF request " .
+				"ID=$hba_hash{'abort_fsf_reqid'} " .
+				"seqno=$hba_hash{'abort_fsf_seqno'}";
+		}
+		elsif($hba_hash{'fsf_command'} eq '0x00000005' || 
+			$hba_hash{'fsf_command'} eq '0x00000008' ||
+		$hba_hash{'fsf_command'} eq '0x00000009') {
+			print "WWPN=$hba_hash{'wwpn'} D_ID=$hba_hash{'d_id'} ";
+			print "port handle=$hba_hash{'port_handle'}";
+		}
+		elsif($hba_hash{'fsf_command'} eq '0x00000006' || 
+			$hba_hash{'fsf_command'} eq '0x00000007') {
+			print "WWPN=$hba_hash{'wwpn'} " .
+				"LUN=$hba_hash{'fcp_lun'}" . $endl;
+			print "port handle=$hba_hash{'port_handle'}" .
+				" LUN handle=$hba_hash{'lun_handle'}"; 
+		}
+		elsif($hba_hash{'fsf_command'} eq '0x0000000b' ) {
+			print "D_ID=$hba_hash{'d_id'} LS " .
+				"code=$hba_hash{'port_handle'}";
+		}
+		print"\n";
+	}
+}
+
+#
+# Filters the rec trace for the specified ports
+#
+# \param	Path to the traces
+#
+sub trace_rec {
+	my(@rec_paths) = @_;
+
+	foreach my $rec_path ( @rec_paths ) {
+		open(DBF,$rec_path . "/structured") or 
+		die("Cannot open DBF file " . $rec_path . "/structured");
+		$rec_path =~/(0\.0\.\w+)_\w+/;  
+		my $adapter = $1;
+		my %rec_hash;
+		while(<DBF>) {
+			if($_ =~ /timestamp\s+([:\d]+)/) {
+				print_rec($adapter,%rec_hash);
+				%rec_hash = ();
+				$rec_hash{'timestamp'} = convert_time($1);
+				print "\n";
+			}
+			elsif ($_ =~ /(\w+)\s+(\w+)/) {
+				$rec_hash{$1} = $2;
+			}
+		}
+		print_rec($adapter,%rec_hash);
+		print "\n";
+		close DBF;  
+	}
+}
+
+#
+# Prints the rec traces 
+#
+# \param	Adapter which is traced
+# \param	Data of the rec trace
+#
+sub print_rec {
+	my($adapter,%rec_hash) = @_;
+	if(defined($rec_hash{'timestamp'}) && defined($rec_hash{'tag'}) && 
+		defined($rec_hash{'hint'}) && defined($rec_hash{'wwpn'}) &&
+		defined($rec_hash{'fcp_lun'})) {
+		print "$adapter $rec_hash{'timestamp'}\ttag=$rec_hash{'tag'} " .
+		  	"hint=$rec_hash{'hint'}" . $endl .
+			"WWPN='$rec_hash{'wwpn'}' lun='$rec_hash{'fcp_lun'}'";
+	} 
+}
+
+# 
+# Filters the san trace for the specified ports
+#
+# \param	Path to the traces
+#
+sub trace_san {
+	my(@san_paths) = @_;
+		
+	foreach my $san_path (@san_paths) {
+		open(DBF,$san_path . "/structured") or 
+		die("Cannnot open DBF file " . $san_path . "/structured");
+		$san_path =~ /(0\.0\.\w+)_\w+/;
+		my $adapter = $1;
+		my %san_hash;
+		while(<DBF>) {
+			if($_ =~ /timestamp\s+([:\d]+)/) {
+				#Every new block starts with a timestamp and 
+				#since we cannot be sure that a block ends with 
+				#a blank line we check for the next timestamp
+				print_san($adapter,%san_hash);
+				%san_hash = ();
+				$san_hash{'timestamp'} = convert_time($1);
+			}
+			elsif ($_ =~ /(\w+)\s+(\w+)/) {
+				$san_hash{$1} = $2;
+			}
+		}
+		print_san($adapter,%san_hash);
+		print"\n";
+		close DBF;
+	}
+	return;
+}
+
+#
+# Prints the san traces 
+#
+# \param	Adapter which is traced
+# \param	Data of the san trace
+#
+sub print_san {
+	my($adapter,%san_hash) = @_;
+
+	if(defined($san_hash{'timestamp'}) && defined($san_hash{'s_id'}) && 
+		defined($san_hash{'d_id'}) && defined($san_hash{'tag'})) {
+		my $tag;
+		if($san_hash{'tag'} eq "octc") { 
+			$tag = "CT request";
+		}
+		elsif($san_hash{'tag'} eq "rctc") {
+			$tag = "CT response";
+		}
+		elsif($san_hash{'tag'} eq "oels") {
+			$tag = "ELS request";
+		}
+		elsif($san_hash{'tag'} eq "rels") {
+			$tag = "ELS respsone";
+		}
+		elsif($san_hash{'tag'} eq "iels") {
+			$tag = "ELS incoming";
+		} 	
+		print "$adapter $san_hash{'timestamp'}\t$san_hash{'s_id'} " .
+			" -> $san_hash{'d_id'} $tag \n";
+	}
+}
+
+#
+# Converts the Unix time to localtime an returns it 
+# depending on the --date option.
+#
+# \param	UNIX Timestamp to convert
+# \return 	Formated Localtime
+#
+sub convert_time {
+	my($timestamp) = @_;
+	
+	my @conv_time = split(/:/,$timestamp);
+	my @local_t = localtime($conv_time[0]);
+	if($OPT_DATE eq "on") {
+		return (sprintf "%04d-%02d-%02d %02d:%02d:%02d.%d", 
+			($local_t[5]+1900) ,$local_t[4],$local_t[3],$local_t[2],
+			$local_t[1],$local_t[0], $conv_time[1]);
+	}
+	else {
+		return (sprintf "%02d:%02d:%02d.%d",$local_t[2],
+			$local_t[1],$local_t[0], $conv_time[1]);
+	} 
+}
+
+#
+# Filters the path to trace 
+#
+#\param		The filter for the paths
+#\param		Path to the traces
+#\return	The filtered pathes
+#
+sub filter_paths {
+	my($filter,@paths) = @_;
+	
+	my @filtered_paths;
+	
+	foreach my $path (@paths) {
+		if($path =~ /_$filter$/) {
+			push(@filtered_paths,$path);
+		}
+	}
+	unless(@filtered_paths) {
+		print "No traces for '$filter' found\n";
+		exit;
+	}
+	return \@filtered_paths;
+}
+
+#
+# Prints the version
+#
+sub print_version {
+
+	my ($s390tools_version) = '%S390_TOOLS_VERSION%';
+	printf "zfcpdbf: version %s\n", $s390tools_version;
+	printf "Copyright IBM Corp. 2005,2009\n";
+	exit;
+}
+
+#
+# Prints the usage
+#
+sub print_usage {
+print 
+"
+Usage: zfcpdbf [COMMAND] [OPTIONS]
+
+Sort debug data of all active or specified FCP adapter(s).
+	-h, --help                display this help and exit
+ 	-v, --version             display version information and exit
+commands:
+	hba                     trace all FSF requests
+	san                     trace SAN activity (default)
+  	scsi                    trace SCSI- and corresponding FCP-commands
+	rec			  trace REC records
+	options:
+	  -d, --device=<device>   FCP adapter device number
+	  -p, --path=<path>       specifiy path to DBF files
+	  -D, --dates={off|on}    show date as well as time 
+	  -s, --singleline        output in one line per event
+	  -V, --verbose           verbose output
+	
+";
+	exit;
+}

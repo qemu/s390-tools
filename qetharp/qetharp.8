@@ -1,0 +1,85 @@
+.TH QETHARP 8 "Apr 2006" "s390-tools"
+.SH NAME
+qetharp \- querying and purging address data in the OSA and HiperSockets hardware.
+
+.SH SYNOPSIS
+.TP 8
+.B qetharp
+.RB [ -hv]
+.br
+.RB [ -[n]q
+.IR interface 
+.RB | -p
+.IR interface ] 
+
+.br
+
+
+.SH DESCRIPTION
+\fBqetharp\fR is a tool to get information like MAC and IP Addresses from
+OSA and HiperSockets. It also allows to flush the ARP table of the mentioned Hardware. 
+
+.SH OPTIONS
+.TP
+\fB-q\fR or \fB--query \fIinterface\fR
+shows the ARP information found in the ARP table of OSA or HiperSockets, which depends on \fBinterface\fR. If it is an OSA device, it shows the ARP entries stored in OSA's ARP table, otherwise the ones from HiperSockets' ARP table.
+If the \fBIP address\fR is \fBIPv4\fR, \fBqetharp\fR tries  to determine the
+symbolic host name, if it fails the IP address will be shown. In case of
+\fBIPv6\fR there is no attempt for determination of host names,so the IP address will be shown directly.   
+.TP
+\fB-n\fR or \fB--numeric\fR
+shows numerical addresses instead of trying to determine symbolic host names. This option can only be used in conjunction with \fB-q\fR option. 
+.TP
+\fB-c\fR or \fB--compact\fR
+shows only numerical addresses without any other information like interface name. Also omits the header.
+.TP
+
+\fB-p\fR or \fB--purge \fIinterface\fR
+flushes the ARP table of OSA. This option does only work with OSA Devices. \fBqetharp\fR returns immediately.
+.TP
+
+\fB-a\fR or \fB--add \fIinterface\fR
+adds a static ARP entry to the OSA card. This command needs an IP address and a
+MAC address (\fB-i\fR and \fB-m\fR switches).
+.TP
+
+\fB-d\fR or \fB--delete \fIinterface\fR
+deletes a static ARP entry from the OSA card. This command needs an
+IP address (\fB-i\fR switch).
+.TP
+
+\fB-i\fR or \fB--ip \fIIP address\fR
+specifies an IP address to be added to or removed from the OSA ARP cache.
+.TP
+\fB-m\fR or \fB--mac \fIMAC address\fR
+specifies a MAC address to be added to the OSA ARP cache.
+.TP
+
+\fB-v\fR or \fB--verbose\fR
+shows version information.
+
+.TP
+\fB-h\fR or \fB--help\fR
+shows usage information for qetharp.
+
+.SH EXAMPLE
+.TP
+\fBqetharp -q eth0\fR  
+shows all ARP entries of OSA.
+.TP
+\fBqetharp -nq eth0\fR 
+shows all ARP entries of OSA without resolving host names.
+.TP
+\fBqetharp -p eth0\fR  
+flushes OSA's ARP table. 
+.TP
+\fBqetharp -a eth0 -i 1.2.3.4 -m aa:bb:cc:dd:ee:ff\fR  
+adds a static ARP entry for the IP address 1.2.3.4 to OSA's ARP cache, using
+a MAC address of aa:bb:cc:dd:ee:ff
+.TP
+\fBqetharp -d eth0 -i 1.2.3.4\fR  
+deletes the static ARP entry for the IP address 1.2.3.4 from OSA's ARP cache.
+
+.SH AUTHOR
+.nf
+This man-page was written by Frank Pavlic <pavlic@de.ibm.com>

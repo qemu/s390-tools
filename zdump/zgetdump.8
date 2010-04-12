@@ -1,0 +1,69 @@
+.TH ZGETDUMP 8 "Apr 2006" "s390-tools"
+.SH NAME
+zgetdump \- tool for copying dumps.
+.SH SYNOPSIS
+\fBzgetdump\fR [-d] [-h] [-i] [-a] [-v] \fIdumpdevice\fR
+.SH DESCRIPTION
+\fBzgetdump\fR takes as input the dump device and writes its contents
+to standard output, which you can redirect to a specific file.
+.br
+\fBzgetdump\fR can also check, whether a DASD device contains a valid dumper.
+.SH OPTIONS
+.TP
+\fB-d\fR
+Check DASD device \fIdumpdevice\fR for valid dumper.
+.TP
+\fB-h\fR
+Print usage and exit.
+.TP
+\fB-i\fR 
+Print the dump header information reading from the \fIdumpdevice\fR and
+check if the dump is valid.
+.TP
+\fB-i -a\fR
+Print the dump header information and check if the dump is valid when
+\fIdumpdevice\fR is a multi-volume tape.
+(Mount and check all cartridges in sequence.)
+.TP
+\fB-v\fR
+Output version information and exit.
+.TP
+\fBdumpdevice\fR
+This parameter specifies the device or partition where the dump is located.
+.SH EXAMPLE
+1. Scenario: DASD partition /dev/dasdx1 was prepared for dump by means of
+.br
+  zipl -d /dev/dasdx1
+.br
+The corresponding single-volume dump tool was IPLed.
+.RB "The respective " "zgetdump " "call to copy the dump from the DASD
+partition to file dump_file is:
+.br
+
+  zgetdump /dev/dasdx1 > dump_file
+
+2. Scenario: DASD partitions /dev/dasdx1 and /dev/dasdy1 contained in file
+dump_list_conf were prepared for dump by means of
+.br
+  zipl -M dump_list_conf
+.br
+The corresponding multi-volume dump tool was IPLed.
+.RB "The respective " "zgetdump " "call to copy the dump from the DASD
+partitions to file dump_file is:
+.br
+
+  zgetdump /dev/dasdx > dump_file   or equivalent
+.br
+  zgetdump /dev/dasdy > dump_file
+
+3. Scenario: Tape device /dev/ntibm0 was prepared for dump by means of
+.br
+  zipl -d /dev/ntibm0
+.br
+The corresponding tape dump tool was IPLed.
+.RB "The respective " "zgetdump " "call to copy the dump from the tape
+to file dump_file is:
+.br
+
+  zgetdump /dev/ntibm0 > dump_file
+

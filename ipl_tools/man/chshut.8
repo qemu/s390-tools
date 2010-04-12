@@ -1,0 +1,65 @@
+.TH chshut 8 "May 2008" "s390-tools"
+
+.SH NAME
+chshut \- Change the shutdown actions for Linux on System z
+
+.SH SYNOPSIS
+\fBchshut\fR [halt | poff | reboot] [ipl | reipl | stop | vmcmd] [VM Command]
+
+.SH DESCRIPTION
+\fBchshut\fR is a tool that can be used to configure the Linux on System z
+shutdown actions. It can control the system behavior in the following system
+states: halt, power off and reboot.
+
+The kernel configuration is controlled via entries below the /sys/firmware
+directory structure.
+
+.SH OPTIONS
+
+\fBchshut\fR [state] [action] [vm command] (optional)
+
+
+The \fBchshut\fR tool handles up to three parameters. The first specifies
+the system state in which you want to change.
+
+The second  argument specifies the action you want to execute in the previously
+specified system state. Valid arguments are ipl, reipl, stop and vmcmd
+
+In case you have chosen vmcmd as action a third parameter is used for the
+command you want to execute inside z/VM.
+
+Note for vmcmd users: VM commands, device addresses, and guest names
+must be uppercase.
+
+
+.SH EXAMPLES
+\fBchshut halt ipl\fR
+
+If the system is halted it should start again.
+
+\fBchshut halt vmcmd LOGOFF\fR
+
+Log off the z/VM guest if the Linux halt command was executed successfully
+
+\fBchshut poff vmcmd "MSG MASTER Going down" vmcmd "LOGOFF"\fR
+
+If the Linux poweroff command is executed, send a message to guest MASTER and
+automatically log off the guest.
+
+.SH NOTES
+
+In some Linux distributions, "halt" might be mapped by default
+to "power off". In this case you have to set "poff" instead of "halt".
+
+.SH ENVIRONMENT
+
+This program is useful when executed within a z/VM or LPAR Linux environment.
+
+The action vmcmd can only be used while running in z/VM.
+
+.SH AUTHOR
+This man-page was written by Hans-Joachim Picht <hans@linux.vnet.ibm.com>.
+
+.SH SEE ALSO
+.BR dumpconf (8)
+.BR lsshut (8)

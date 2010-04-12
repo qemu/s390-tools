@@ -1,0 +1,139 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides: mon_statd
+# Required-Start: $local_fs $remote_fs
+# Required-Stop: $local_fs $remote_fs
+# Should-Start: 
+# Should-Stop: 
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Configure the mon_fsstatd and mon_procd daemons.
+# Description: Configures the mon_fsstatd and mon_procd daemons. It uses the
+#              configuration file /etc/sysconfig/mon_statd.
+### END INIT INFO
+
+# chkconfig: 2345 01 99
+
+DAEMON=mon_statd
+FSSTATD=mon_fsstatd
+PROCD=mon_procd
+FSSTATD_PATH=/usr/sbin/$FSSTATD
+PROCD_PATH=/usr/sbin/$PROCD
+CONFIG_FILE=/etc/sysconfig/$DAEMON
+FSSTATD_PID_FILE=/var/run/$FSSTATD.pid
+PROCD_PID_FILE=/var/run/$PROCD.pid
+RETVAL=0
+
+# source function library
+. /lib/lsb/init-functions
+
+# Source config file
+if [ -f $CONFIG_FILE ]; then
+	. $CONFIG_FILE
+fi
+
+start()
+{
+	if [ ! -e /dev/monwriter ]; then
+		echo "Loading monwriter module..."
+		modprobe monwriter 2>&1
+		if [ "$?" -ne 0 ]; then
+			exit 1
+		fi
+		while [ ! -e /dev/monwriter ]; do
+			sleep 0
+		done
+	fi
+
+	if [ ! -f $FSSTATD_PID_FILE -a "$FSSTAT" = "yes" ]; then
+		echo -n $"Starting $FSSTATD:"
+		$FSSTATD_PATH -i $FSSTAT_INTERVAL
+		if [ $? == 0 ]; then
+			touch /var/lock/subsys/mon_statd
+			log_success_msg
+		else
+			log_failure_msg
+		fi
+	elif [ "$FSSTAT" = "yes" ]; then
+		echo "$FSSTATD (pid $(cat $FSSTATD_PID_FILE)) is already running..."
+	fi
+
+	if [ ! -f $PROCD_PID_FILE -a "$PROC" = "yes" ]; then
+		echo -n $"Starting $PROCD:"
+		$PROCD_PATH -i $PROC_INTERVAL
+		if [ $? == 0 ]; then
+			touch /var/lock/subsys/mon_statd
+			log_success_msg
+		else
+			log_failure_msg
+		fi
+	elif [ "$PROC" = "yes" ]; then
+		echo "$PROCD (pid $(cat $PROCD_PID_FILE)) is already running..."
+	fi
+	echo
+}
+
+stop()
+{
+	echo -n $"Stopping $FSSTATD:"
+	if [ -f $FSSTATD_PID_FILE ]; then
+		killproc $FSSTATD_PATH -TERM
+		log_success_msg
+		rm -f $FSSTATD_PID_FILE
+	else
+		log_failure_msg
+	fi
+
+	echo -n $"Stopping $PROCD:"
+	if [ -f $PROCD_PID_FILE ]; then
+		killproc $PROCD_PATH -TERM
+		log_success_msg
+		rm -f $PROCD_PID_FILE
+	else
+		log_failure_msg
+	fi
+	rm -f /var/lock/subsys/mon_statd
+	echo
+}
+
+restart() {
+	stop
+	start
+}
+
+status()
+{
+	if [ ! -f $FSSTATD_PID_FILE ]; then
+		echo "$FSSTATD is not running."
+	else
+		echo "$FSSTATD (pid $(cat $FSSTATD_PID_FILE), interval: $FSSTAT_INTERVAL) is running."
+	fi
+
+	if [ ! -f $PROCD_PID_FILE ]; then
+		echo "$PROCD is not running."
+	else
+		echo "$PROCD (pid $(cat $PROCD_PID_FILE), interval: $PROC_INTERVAL) is running."
+	fi
+	echo
+}
+
+# How are we called?
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	status)
+		status
+		;;
+	restart|reload)
+		restart
+		;;
+	*)
+		echo "Usage: $DAEMON {start|stop|status|restart|reload}"
+		RETVAL=1
+esac
+
+exit $RETVAL

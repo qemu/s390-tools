@@ -1,0 +1,71 @@
+.TH LSZCRYPT 8 "AUG 2008" "s390-tools"
+.SH NAME
+lszcrypt \- display zcrypt device and configuration information
+.SH SYNOPSIS
+.TP 9
+.B lszcrypt
+.RB "[ " -V " | " -VV " ] "
+[
+.I <device id>
+[...]]
+.TP
+.B lszcrypt -b
+.TP
+.B lszcrypt -h
+.TP
+.B lszcrypt -v
+.SH DESCRIPTION
+The
+.B lszcrypt
+command is used to display information about cryptographic adapters managed by
+zcrypt and zcrypt's AP bus attributes. Displayed information depends on the
+kernel version.
+.B lszcrypt
+requires that the sysfs filesystem is mounted.
+.P
+The following information can be displayed for each cryptographic adapter: card
+type, online status, hardware card type, hardware queue depth, and request
+count. The following AP bus attributes can be displayed: AP domain,
+configuration timer, poll thread status, poll timeout, and AP interrupt status.
+.SH OPTIONS
+.TP 8
+.B -V, --verbose
+Increase verbose level for cryptographic adapter information. Maximum verbose
+level is two. At verbose level one card type and online status are displayed.
+At verbose level two card type, online status, hardware card type, hardware
+queue depth, and request count are displayed.
+.TP 8
+.B <device id>
+Specifies a cryptographic adapter which will be displayed. A cryptographic
+adapter can be specified either in decimal or hexadecimal notation using
+a '0x' prefix. If no adapters are specified information about all available
+adapters will be displayed.
+.TP 8
+.B -b, --bus
+Show AP bus attributes and exit.
+.TP 8
+.B -h, --help
+Print help text and exit.
+.TP 8
+.B -v, --version
+Print version information and exit.
+.SH EXAMPLES
+.TP
+.B lszcrypt -V
+Will display card type and online status of all available cryptographic
+adapters.
+.TP
+.B lszcrypt -VV 0 1 10 12
+Will display card type, online status, hardware card type, hardware queue
+depth, and request count for cryptographic adapters in decimal notation 0, 1,
+10, and 12.
+.TP
+.B lszcrypt -b
+Will display AP bus information.
+.SH SEE ALSO
+\fBchzcrypt\fR(8)
+.SH AUTHOR
+.nf
+This man-page was written by Ralph Wuerthner <rwuerthn@de.ibm.com> and
+Felix Beck <felix.beck@de.ibm.com>.
+.fi

@@ -1,0 +1,52 @@
+#
+# s390 dump config
+#
+# Configures the actions which should be performed after a kernel panic.
+#
+# The following actions are supported:
+#
+# * stop:       Stop Linux (default)
+# * dump:       Dump Linux
+# * vmcmd:      Issue z/VM CP commands
+# * reipl:      Re-IPL Linux using setting under /sys/firmware/reipl
+# * dump_reipl: First dump Linux, then re-IPL Linux using setting under
+#               /sys/firmware/reipl
+#
+
+#
+# Dump on ccw device (DASD) and re-IPL after dump is complete.
+# The re-IPL device, as specified under "/sys/firmware/reipl", is used.
+#
+# ON_PANIC=dump_reipl
+# DUMP_TYPE=ccw
+# DEVICE=0.0.4e13
+
+#
+# Dump on fcp device (SCSI Disk)
+#
+# ON_PANIC=dump
+# DUMP_TYPE=fcp
+# DEVICE=0.0.4711
+# WWPN=0x5005076303004711
+# LUN=0x4711000000000000
+# BOOTPROG=0
+# BR_LBA=0
+
+#
+# Use VMDUMP
+#
+# ON_PANIC=vmcmd
+# VMCMD_1="MESSAGE * Starting VMDUMP"
+# VMCMD_2="VMDUMP"
+# VMCMD_3="IPL 4711"
+
+#
+# Stop after panic (default)
+#
+# ON_PANIC=stop
+
+#
+# Re-IPL on panic
+# The re-IPL device, as specified under "/sys/firmware/reipl", is used.
+#
+# ON_PANIC=reipl

@@ -1,0 +1,116 @@
+.TH chreipl 8 "May 2008" "s390-tools"
+
+.SH NAME
+chreipl \- Change the re-ipl configuration for Linux on System z
+
+.SH SYNOPSIS
+\fBchreipl\fR [ACTION] [OPTIONS]
+
+.SH DESCRIPTION
+\fBchreipl\fR is a tool that can be used to simplify the re-ipl configuration
+for Linux on System z. Using this tool you can configure a certain disk as well
+as an optional entry in the bootmenu you can boot from during the next
+reboot cycle.
+
+IPL (Initial Program Load) is the mainframe synonym for what is called
+"boot" in Linux. Accordingly re-IPL can be translated to "reboot" in the non
+mainframe context.
+
+.SH ACTION
+
+The first argument specifies the component which should be modified:
+
+\fBccw\fR     Select a ccw device (dasd) for configuration
+
+\fBfcp\fR     Select a fcp device (device) for configuration
+
+\fBnode\fR    Specify a boot target based on an existing device file
+
+.SH OPTIONS
+
+.TP
+\fB-b\fR or \fB--bootprog\fR
+Specify an optional entry in the boot menu to use for the next reboot.
+The bootprog parameter only works in a FCP environment.
+
+.TP
+\fB-d\fR or \fB--device\fR
+Specify a device number to boot from. The 4 as well as the 8 digit notation can
+be used (e.g. 4711 is the same as 0.0.4711)
+
+.TP
+\fB-h\fR or \fB--help\fR
+Print usage message and exit.
+
+.TP
+\fB-l\fR or \fB--lun\fR
+Boot from a fcp attached storage device during the next re-ipl and use the following LUN.
+
+A logical unit number (LUN) is a number assigned used to control devices on the
+SCSI bus.
+
+The LUN is a \fBhex\fR value.
+
+.TP
+\fB-L\fR or \fB--loadparm\fR
+
+Specify an optional entry in the boot menu to use for the next reboot. This
+option requires an alphanumeric or blank (" ") argument and only works if a
+valid zipl bootmenu is present.
+The Loadparm parameter only works in a DASD environment.
+
+.TP
+\fB-v\fR or \fB--version\fR
+Print Version information and exit.
+
+.TP
+\fB-w\fR or \fB--wwpn\fR
+Boot from a fcp attached storage device during the next re-ipl and use the following WWPN.
+
+A World Wide Port Name (WWPN) is a unique identifier to a port in a fibre channel fabric in a storage area network.
+
+The WWPN is a \fBhex\fR value.
+
+.SH EXAMPLES
+.nf
+\fBchreipl node /dev/dasda\fR
+
+Next time boot from device /dev/dasda.
+
+\fBchreipl ccw 0.0.7e78 \fR
+
+Use the ccw device with the number 0.0.7e78 using for the next system
+start.
+
+\fBchreipl ccw -d 0.0.7e78 -L 1\fR
+
+After reboot, ipl from the ccw device with the number 0.0.7e78 using
+the first entry of the boot menu.
+
+\fBchreipl fcp --wwpn 0x500507630300c562 --lun 0x401040B300000000 \\\fR
+            \fB-d 0.0.1700\fR
+
+or
+
+\fBchreipl fcp 0.0.1700 0x500507630300c562 0x401040B300000000\fR
+
+Re-ipl from the fcp device number 0.0.1700 using WWPN 0x500507630300c562
+and LUN 0x401040B300000000.
+
+\fBchreipl node /dev/sda\fR
+
+Use /dev/sda as the boot device for the next boot.
+
+
+.SH ENVIRONMENT
+
+This program is useful when executed within a z/VM or LPAR Linux environment.
+
+SCSI re-ipl using fcp attached storage devices as shown in the last command in
+the example section only works with recent kernels like 2.6.25.
+
+.SH AUTHOR
+This man-page was written by Hans-Joachim Picht <hans@linux.vnet.ibm.com>.
+
+.SH SEE ALSO
+.BR lsreipl (8)

@@ -1,0 +1,59 @@
+.TH ZFCPDBF 1 "Aug 2009" "s390-tools"
+
+.SH NAME
+zfcpdbf \- zfcp debug data sort/analyse tool.
+
+.SH SYNOPSIS
+.br
+\fBzfcpdbf\fR [hba|san|scsi|rec] [-d \fIdevice\fR] [-p \fIpath\fR] [-D off|on] [-s] [-V]
+.br
+\fBzfcpdbf\fR {-h|-v}
+
+.SH DESCRIPTION
+\fBzfcpdbf\fR sorts debug data of all active or specified FCP adapter(s).
+
+.SH COMMANDS
+.TP
+\fBhba\fR
+Trace all FSF requests.
+
+.TP
+\fBsan\fR
+Trace SAN activity (default).
+
+.TP
+\fBscsi\fR
+Trace SCSI- and corresponding FCP-commands.
+
+.TP
+\fBrec\fR
+Trace error recovery.
+
+.SH OPTIONS
+.TP
+\fB-h\fR or \fB--help\fR
+Print usage information, then exit.
+
+.TP
+\fB-v\fR or \fB--version\fR
+Print version information, then exit.
+
+.TP
+\fB-d <busid>\fR or \fB--device=<busid>\fR
+Specify bus ID of the FCP adapter (default: all active FCP adapters).
+
+.TP
+\fB-p <path>\fR or \fB--path=<path>\fR
+Specifiy path to DBF files (default: mount point of the debugfs in Linux 2.6)
+
+.TP
+\fB-D {off|on}\fR or \fB--dates={off|on}\fR
+Show date as well as time in timestamp per event (default: on).
+
+.TP
+\fB-s\fR or \fB--singleline\fR
+Print one line per event. Usefull for piping the output to some other tool (grep, wc, ...).
+
+.TP
+\fB-V\fR or \fB--verbose\fR
+Provide more verbose output.
