@@ -17,12 +17,12 @@ all: data.o data.h tape0.bin
 %:	%.S
 
 virtio-transport.o:	virtio-transport.c
-	echo "$(CC) $(CFLAGS) -Os -g -c -o $@ $<";   \
-	$(CC) $(CFLAGS) -Os -g -c -o $@ $<
+	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
+	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
 
 virtio-loadstage2.o:	virtio-loadstage2.c
-	echo "$(CC) $(CFLAGS) -Os -g -c -o $@ $<";   \
-	$(CC) $(CFLAGS) -Os -g -c -o $@ $<
+	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
+	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
 
 %.o:	%.S
 	$(CC) $(CFLAGS) -c -o $@ $<
