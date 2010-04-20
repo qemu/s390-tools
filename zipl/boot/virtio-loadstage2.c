@@ -28,11 +28,14 @@ unsigned long _sclp_setup(unsigned long deactivate);
 unsigned long virtio_load_direct(ulong rec_list1, ulong rec_list2,
 				 ulong subchan_id, void *load_addr);
 unsigned long _sclp_print(char *ebcdic);
+void virtio_zipl_fallback(void);
+void virtio_puts(const char *string);
 
 void virtio_load_stage2() {
     u64 *sector = (void*)0x8020;
     char *stage2 = (void*)0x2000;
     void (*stage2_func)(void) = (void*)0x2008;
+    ulong *bss = (void*)0x4500;
 
     /* Initialize virtio and fetch MBR to 0x8000 */
     _sclp_setup(0);
@@ -41,10 +44,22 @@ void virtio_load_stage2() {
     while (*sector) {
         stage2 = (void*)virtio_load_direct(sector[0], sector[1], 0, stage2);
         sector += 2;
+
+        /* Fallback if no stage2 is installed */
+        if ((long)stage2 == -1)
+            virtio_zipl_fallback();
     }
 
     /* Newline so stage2 starts off fresh */
-    _sclp_print("");
+    virtio_puts("\n");
+
+    /* Clear BSS */
+    while(1) {
+        *bss = 0;
+        bss++;
+        if ((ulong)bss > 0x6000)
+            break;
+    }
 
     /* Call stage2! */
     stage2_func();

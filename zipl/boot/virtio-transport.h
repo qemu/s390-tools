@@ -99,7 +99,7 @@ static inline void debug_print_int(const char *desc, u64 addr)
 #ifdef DEBUG
     unsigned char *addr_c = (unsigned char*)&addr;
     char out[] = ": 0xffffffffffffffff\n";
-    int i;
+    unsigned int i;
 
     for (i = 0; i < sizeof(addr); i++) {
         fill_hex(&out[4 + (i*2)], addr_c[i]);

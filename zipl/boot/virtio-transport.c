@@ -52,7 +52,7 @@ void virtio_panic(const char *string)
     virtio_stop();
 }
 
-static void virtio_puts(const char *string)
+void virtio_puts(const char *string)
 {
     int string_len = 0;
     const char *ns;
@@ -156,7 +156,7 @@ static void *virtio_enum_dev(void *devptr)
     return &vdev.config[dev->config_len];
 }
 
-static int virtio_read(ulong sector, void *load_addr)
+int virtio_read(ulong sector, void *load_addr)
 {
     struct virtio_blk_outhdr out_hdr;
     u8 status;
@@ -275,7 +275,8 @@ unsigned long virtio_load_direct(ulong rec_list1, ulong rec_list2,
     debug_print_addr("load_addr", load_addr);
 
     if (sec_len != SECTOR_SIZE) {
-        virtio_panic("sector size invalid");
+        debug_print_int("sector size invalid", sec_len);
+        return -1;
     }
 
     for (i = 0; i < sec_num; i++) {
@@ -366,7 +367,7 @@ unsigned long _sclp_print(unsigned char *ebcdic)
 unsigned long virtio_sclp_read(unsigned long timeout, char *p)
 {
     char t[] = " \n";
-    int i;
+    unsigned int i;
     int r;
 
     debug_print_int("read timeout", timeout);

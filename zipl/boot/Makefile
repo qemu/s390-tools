@@ -24,6 +24,10 @@ virtio-loadstage2.o:	virtio-loadstage2.c
 	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
 	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
 
+virtio-fallback.o:	virtio-fallback.c
+	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
+	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
+
 %.o:	%.S
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -33,11 +37,11 @@ virtio2.exec:	virtio2.o virtio-transport.o virtio-menuparam.o
 			 virtio-menuparam.o \
 			 -nostdlib -Wl,-Ttext,0x2000,-Tbss,0x4500
 
-virtio1.exec:	virtio1.o virtio-transport.o virtio-loadstage2.o
+virtio1.exec:	virtio1.o virtio-transport.o virtio-loadstage2.o virtio-fallback.o
 	echo "$(CC) $(LDFLAGS) -o $@ $$SFLAGS $<"
 	$(CC) $(LDFLAGS) -o virtio1.exec virtio1.o virtio-transport.o \
-			 virtio-loadstage2.o \
-			 -nostdlib -Wl,-Ttext,0x1000,-Tbss,0x4000
+			 virtio-loadstage2.o virtio-fallback.o \
+			 -nostdlib -Wl,-Ttext,0x9000,-Tbss,0x4500
 
 %.exec:	%.o
 	@STAGE=$$(                                  \
