@@ -94,7 +94,7 @@ static int zipl_magic(uint8_t *ptr)
 
 static int zipl_load_segment(struct component_entry *entry)
 {
-    int max_entries = SECTOR_SIZE / sizeof(struct scsi_blockptr);
+    const int max_entries = (SECTOR_SIZE / sizeof(struct scsi_blockptr));
     struct scsi_blockptr *bprs = (void*)sec;
     uint64_t blockno;
     void *address;
@@ -112,11 +112,16 @@ static int zipl_load_segment(struct component_entry *entry)
             goto fail;
         }
 
-        for (i = 0; i < max_entries; i++) {
+        for (i = 0;; i++) {
             u64 *cur_desc = (void*)&bprs[i];
 
             blockno = bprs[i].blockno;
             if (!blockno)
+                break;
+
+            /* we need the updated blockno for the next indirect entry in the
+               chain, but don't want to advance address */
+            if (i == (max_entries - 1))
                 break;
 
             address = virtio_load_direct(cur_desc[0], cur_desc[1], 0, address);
