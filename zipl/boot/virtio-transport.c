@@ -156,7 +156,7 @@ static void *virtio_enum_dev(void *devptr)
     return &vdev.config[dev->config_len];
 }
 
-int virtio_read(ulong sector, void *load_addr)
+static int virtio_read_many(ulong sector, void *load_addr, int sec_num)
 {
     struct virtio_blk_outhdr out_hdr;
     u8 status;
@@ -169,8 +169,9 @@ int virtio_read(ulong sector, void *load_addr)
     vring_send_buf(&block, &out_hdr, sizeof(out_hdr), VRING_DESC_F_NEXT);
 
     /* This is where we want to receive data */
-    vring_send_buf(&block, load_addr, SECTOR_SIZE, VRING_DESC_F_WRITE |
-                   VRING_HIDDEN_IS_CHAIN | VRING_DESC_F_NEXT);
+    vring_send_buf(&block, load_addr, SECTOR_SIZE * sec_num,
+                   VRING_DESC_F_WRITE | VRING_HIDDEN_IS_CHAIN |
+                   VRING_DESC_F_NEXT);
 
     /* status field */
     vring_send_buf(&block, &status, sizeof(u8), VRING_DESC_F_WRITE |
@@ -180,6 +181,11 @@ int virtio_read(ulong sector, void *load_addr)
     vring_wait_reply(&block, 0);
 
     return status;
+}
+
+int virtio_read(ulong sector, void *load_addr)
+{
+    return virtio_read_many(sector, load_addr, 1);
 }
 
 static void virtio_init(void)
@@ -279,19 +285,13 @@ unsigned long virtio_load_direct(ulong rec_list1, ulong rec_list2,
         return -1;
     }
 
-    for (i = 0; i < sec_num; i++) {
-        if ((i % 100) == 0) {
-            virtio_puts(".");
-        }
-        status = virtio_read(sec, (void*)addr);
-
-        if (status) {
-            debug_print_int("load_direct status", status);
-            virtio_panic("I/O Error");
-        }
-        sec++;
-        addr += SECTOR_SIZE;
+    virtio_puts(".");
+    status = virtio_read_many(sec, (void*)addr, sec_num);
+    if (status) {
+        debug_print_int("load_direct status", status);
+        virtio_panic("I/O Error");
     }
+    addr += sec_num * SECTOR_SIZE;
 
     return addr;
 }
