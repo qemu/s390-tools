@@ -196,6 +196,13 @@ static inline long sclp_get_ram_size(void)
 #define KVM_S390_VIRTIO_RESET		1
 #define KVM_S390_VIRTIO_SET_STATUS	2
 
+static inline void yield(void)
+{
+	asm volatile ("diag 0,0,0x44"
+                      : :
+		      : "memory", "cc");
+}
+
 static inline long kvm_hypercall(unsigned long nr, unsigned long param)
 {
 	register ulong r_nr asm("1") = nr;
@@ -423,6 +430,7 @@ static inline int vring_wait_reply(struct vring *vr, int timeout)
             r = 1;
             break;
         }
+        yield();
     }
 
     vr->next_idx = 0;
