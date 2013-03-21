@@ -7,7 +7,7 @@ CFLAGS  += -I../include -D__ASSEMBLY__ -m64 \
 		-DS390_TOOLS_VERSION_EBCDIC=$(S390_TOOLS_VERSION_EBCDIC)
 LDFLAGS = -Os -m64
 FILES	:= fba0.bin fba2.bin eckd0.bin eckd1a.bin eckd1b.bin eckd2.bin \
-	   virtio1.bin virtio2.bin \
+	   virtio1.bin virtio2.bin virtioccw1.bin \
 	   eckd2dump.bin tapedump.bin stage3.bin tape0.bin fba2dump.bin \
 	   eckd2mvdump.bin
 
@@ -20,7 +20,15 @@ virtio-transport.o:	virtio-transport.c
 	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
 	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
 
+virtio-ccw-transport.o:	virtio-ccw-transport.c
+	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
+	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
+
 virtio-loadstage2.o:	virtio-loadstage2.c
+	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
+	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
+
+virtio-ccw-loadstage2.o:	virtio-ccw-loadstage2.c
 	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
 	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
 
@@ -41,6 +49,12 @@ virtio1.exec:	virtio1.o virtio-transport.o virtio-loadstage2.o virtio-fallback.o
 	echo "$(CC) $(LDFLAGS) -o $@ $$SFLAGS $<"
 	$(CC) $(LDFLAGS) -o virtio1.exec virtio1.o virtio-transport.o \
 			 virtio-loadstage2.o virtio-fallback.o \
+			 -nostdlib -Wl,-Ttext,0x9000,-Tbss,0x4500
+
+virtioccw1.exec:	virtio1.o virtio-ccw-transport.o virtio-ccw-loadstage2.o virtio-fallback.o
+	echo "$(CC) $(LDFLAGS) -o $@ $$SFLAGS $<"
+	$(CC) $(LDFLAGS) -o virtioccw1.exec virtio1.o virtio-ccw-transport.o \
+			 virtio-ccw-loadstage2.o \
 			 -nostdlib -Wl,-Ttext,0x9000,-Tbss,0x4500
 
 %.exec:	%.o
