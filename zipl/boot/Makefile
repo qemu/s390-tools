@@ -36,6 +36,10 @@ virtio-fallback.o:	virtio-fallback.c
 	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
 	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
 
+sclp-ascii.o:	sclp-ascii.c
+	echo "$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<";   \
+	$(CC) $(CFLAGS) -Os -g -c -fno-stack-protector -o $@ $<
+
 %.o:	%.S
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -51,7 +55,7 @@ virtio1.exec:	virtio1.o virtio-transport.o virtio-loadstage2.o virtio-fallback.o
 			 virtio-loadstage2.o virtio-fallback.o \
 			 -nostdlib -Wl,-Ttext,0x9000,-Tbss,0x4500
 
-virtioccw1.exec:	virtio1.o virtio-ccw-transport.o virtio-ccw-loadstage2.o virtio-fallback.o
+virtioccw1.exec:	virtio1.o virtio-ccw-transport.o virtio-ccw-loadstage2.o virtio-fallback.o sclp-ascii.o
 	echo "$(CC) $(LDFLAGS) -o $@ $$SFLAGS $<"
 	$(CC) $(LDFLAGS) -o virtioccw1.exec virtio1.o virtio-ccw-transport.o \
 			 virtio-ccw-loadstage2.o \

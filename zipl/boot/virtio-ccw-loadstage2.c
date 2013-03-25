@@ -24,6 +24,19 @@
 
 #include "virtio-transport.h"
 
+/* XXX We don't have LTO available, so let's include c files into
+       each other. This gives us strong optimization as well */
+#define SCLP_ASCII_INCLUDED
+#include "sclp-ascii.c"
+
+#if 0
+void sclp_setup(void);
+void sclp_print(char *str);
+#endif
+
 void virtio_load_stage2()
 {
+    sclp_setup();
+    sclp_print("Hello World\n");
+    while (1) { }
 }

@@ -48,6 +48,7 @@ GDS_KEY_SelfDefTextMsg	= 0x31
 #   R3  = external interruption parameter if R2=0
 #
 
+.globl _sclp_wait_int
 _sclp_wait_int:
 	stm    %r6,%r15,24(%r15)		# save registers
 
@@ -145,6 +146,7 @@ _sclp_wait_int:
 #   R3  = sccb response code if R2 = 0
 #
 
+.globl _sclp_servc
 _sclp_servc:
 	stm    %r6,%r15,24(%r15)		# save registers
 	ahi    %r15,-96				# create stack frame
@@ -187,6 +189,7 @@ _sclp_servc:
 #   R2  = 0 on success, non-zero on failure
 #
 
+.globl _sclp_setup
 _sclp_setup:
 	entry_linkage
 
@@ -264,6 +267,7 @@ _sclp_setup:
 #   R2  = 0 on success, 1 on failure
 #
 
+.globl _sclp_print
 _sclp_print:
 	entry_linkage
 
@@ -392,6 +396,7 @@ _sclp_print:
 #   R3  = length of input data
 #
 
+.globl _sclp_read
 _sclp_read:
 	stm    %r6,%r15,24(%r15)		# save registers
 
@@ -546,6 +551,7 @@ _sclp_read:
 #   R2  = address of sccb on success, 0 on failure
 #
 
+.globl _sclp_read_info
 _sclp_read_info:
 	entry_linkage
 
@@ -618,6 +624,7 @@ _sclp_read_info:
 #   R2  = 0 on success, 1 on failure
 #
 
+.globl _sclp_param
 _sclp_param:
 	stm    %r6,%r15,24(%r15)                # save registers
 

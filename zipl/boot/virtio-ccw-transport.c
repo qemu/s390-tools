@@ -32,28 +32,3 @@
 static void virtio_init(void)
 {
 }
-
-/***********************************************
- *                 SCLP fake                   *
- ***********************************************/
-
-
-/*
- * Subroutine to set up the SCLP interface.
- *
- * Parameters:
- *   R2  = 0 to activate, non-zero to deactivate
- *
- * Returns:
- *   R2  = 0 on success, non-zero on failure
- */
-unsigned long _sclp_setup(unsigned long deactivate)
-{
-    if (deactivate)
-        return 0;
-
-    early_puts("_sclp_setup\n");
-    virtio_init();
-    return 0;
-}
-
