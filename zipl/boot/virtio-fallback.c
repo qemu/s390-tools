@@ -19,10 +19,18 @@
 
 #include "virtio-transport.h"
 
+#ifndef uint8_t
 #define uint8_t			unsigned char
+#endif
+#ifndef uint16_t
 #define uint16_t		unsigned short
+#endif
+#ifndef uint32_t
 #define uint32_t		unsigned int
+#endif
+#ifndef uint64_t
 #define uint64_t		unsigned long long
+#endif
 
 // #define DEBUG_FALLBACK
 
@@ -34,11 +42,13 @@
     do { } while (0)
 #endif
 
+#ifndef VIRTIO_FALLBACK_INCLUDED
 void virtio_panic(const char *string);
 int virtio_read(ulong sector, void *load_addr);
 void *virtio_load_direct(ulong rec_list1, ulong rec_list2,
 			 ulong subchan_id, void *load_addr);
 void virtio_puts(const char *string);
+#endif
 
 struct scsi_blockptr {
     uint64_t blockno;
@@ -187,6 +197,9 @@ fail:
     return -1;
 }
 
+#ifdef VIRTIO_FALLBACK_INCLUDED
+static
+#endif
 int zipl_load(void)
 {
     struct mbr *mbr = (void*)sec;
@@ -246,12 +259,16 @@ fail:
     return -1;
 }
 
-
+#ifdef VIRTIO_FALLBACK_INCLUDED
+static
+#endif
 void virtio_zipl_fallback(void)
 {
     sec = (void*)0x8000;
 
+#if 0
     virtio_puts("No virtio zipl found. Falling back to manual default entry loading\n");
+#endif
     if (zipl_load() < 0)
         virtio_puts("Failed to load OS from hard disk\n");
 }

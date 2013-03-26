@@ -22,6 +22,9 @@
  * THE SOFTWARE.
  */
 
+#ifndef VIRTIO_TRANSPORT_H
+#define VIRTIO_TRANSPORT_H
+
 // #define DEBUG
 
 #define u8	unsigned char
@@ -31,9 +34,15 @@
 #define ulong	unsigned long
 typedef long size_t;
 
+#ifndef EIO
 #define EIO	1
+#endif
+#ifndef EBUSY
 #define EBUSY	2
+#endif
+#ifndef NULL
 #define NULL    0
+#endif
 
 static inline void *memset(void *s, int c, size_t n)
 {
@@ -195,6 +204,7 @@ static inline long sclp_get_ram_size(void)
 #define KVM_S390_VIRTIO_NOTIFY		0
 #define KVM_S390_VIRTIO_RESET		1
 #define KVM_S390_VIRTIO_SET_STATUS	2
+#define KVM_S390_VIRTIO_CCW_NOTIFY      3
 
 static inline void yield(void)
 {
@@ -217,19 +227,48 @@ static inline long kvm_hypercall(unsigned long nr, unsigned long param)
 	return retval;
 }
 
+static inline long kvm_hypercall2(unsigned long nr, unsigned long param1,
+                                  unsigned long param2)
+{
+	register ulong r_nr asm("1") = nr;
+	register ulong r_param1 asm("2") = param1;
+	register ulong r_param2 asm("3") = param2;
+	register long retval asm("2");
+
+	asm volatile ("diag 2,4,0x500"
+		      : "=d" (retval)
+		      : "d" (r_nr), "0" (r_param1), "r"(r_param2)
+		      : "memory", "cc");
+
+	return retval;
+}
+
 static inline void virtio_set_status(unsigned long dev_addr)
 {
+#ifdef VIRTIO_CCW
+    unsigned char status = dev_addr;
+    run_ccw(blk_schid, CCW_CMD_WRITE_STATUS, &status, sizeof(status));
+#else
     kvm_hypercall(KVM_S390_VIRTIO_SET_STATUS, dev_addr);
+#endif
 }
 
 static inline void virtio_notify(unsigned long vq_addr)
 {
+#ifdef VIRTIO_CCW
+    kvm_hypercall2(KVM_S390_VIRTIO_CCW_NOTIFY, *(u32*)&blk_schid, 0);
+#else
     kvm_hypercall(KVM_S390_VIRTIO_NOTIFY, vq_addr);
+#endif
 }
 
 static inline void virtio_reset(void *dev)
 {
+#ifdef VIRTIO_CCW
+    run_ccw(blk_schid, CCW_CMD_VDEV_RESET, NULL, 0);
+#else
     kvm_hypercall(KVM_S390_VIRTIO_RESET, (ulong)dev);
+#endif
 }
 
 static void early_puts(const char *string)
@@ -292,6 +331,13 @@ struct virtio_vqconfig {
     u64 address;
     u16 num;
     u8  pad[6];
+} __attribute__((packed));
+
+struct vq_info_block {
+    u64 queue;
+    u32 align;
+    u16 index;
+    u16 num;
 } __attribute__((packed));
 
 struct virtio_dev {
@@ -481,3 +527,4 @@ struct virtio_blk_outhdr {
 
 #define SECTOR_SIZE 512
 
+#endif /* VIRTIO_TRANSPORT_H */
